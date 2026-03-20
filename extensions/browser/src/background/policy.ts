@@ -188,12 +188,20 @@ export class PolicyManager {
     team: string | undefined,
     targetUrl: string,
   ): PolicyEvaluation {
-    // Default: allow (no policy loaded yet or nothing matches).
+    // Default: enforce with built-in protection when no backend is connected.
+    // This ensures PII/secrets are always scanned locally even offline.
     const fallback: PolicyEvaluation = {
       decision: "allow",
-      reason: "no matching policy",
-      policyName: "",
-      mode: "discover",
+      reason: "built-in local policy (no backend connected)",
+      policyName: "local-default",
+      mode: "enforce",
+      inputPolicy: {
+        block_pii: true,
+        anonymize_pii: true,
+        pii_types: ["ssn", "credit_card", "email", "phone", "bank_account", "passport"],
+        block_secrets: true,
+        block_injection_score_above: 0.7,
+      },
     };
 
     if (!this.loaded || this.policies.length === 0) {

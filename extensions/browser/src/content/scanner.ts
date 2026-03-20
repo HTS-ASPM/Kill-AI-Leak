@@ -124,6 +124,27 @@ const SECRET_PATTERNS: DetectionPattern[] = [
   },
   {
     type: "secret",
+    label: "credential",
+    severity: "critical",
+    regex:
+      /(?:password|passwd|pass|pwd)\s*[-=:]\s*["']?(\S{3,})["']?/gi,
+  },
+  {
+    type: "secret",
+    label: "credential",
+    severity: "critical",
+    regex:
+      /(?:username|user|login|uname)\s*[-=:]\s*["']?(\S{3,})["']?\s*[,/;&\n]\s*(?:password|passwd|pass|pwd)\s*[-=:]\s*["']?(\S{3,})["']?/gi,
+  },
+  {
+    type: "secret",
+    label: "credential",
+    severity: "high",
+    regex:
+      /(?:username|user|login)\s*[-=:]\s*["']?[A-Za-z0-9_.@-]{2,}["']?/gi,
+  },
+  {
+    type: "secret",
     label: "connection_string",
     severity: "critical",
     regex:
