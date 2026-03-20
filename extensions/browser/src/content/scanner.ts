@@ -1,3 +1,5 @@
+export {};
+
 // ---------------------------------------------------------------------------
 // Kill-AI-Leak — Content Script: Prompt & Response Scanner
 //
@@ -273,7 +275,7 @@ function removeOverlay(): void {
 // ---------------------------------------------------------------------------
 
 let pendingAction: "block" | "anonymize" | "allow" | null = null;
-let pendingResolve: ((action: "block" | "anonymize" | "allow") => void) | null =
+export let pendingResolve: ((action: "block" | "anonymize" | "allow") => void) | null =
   null;
 
 function waitForUserAction(
@@ -462,12 +464,10 @@ function isSendButtonElement(el: HTMLElement): boolean {
 
 const originalFetch = window.fetch.bind(window);
 
-(window as Record<string, unknown>).fetch = async function patchedFetch(
+(window as unknown as Record<string, unknown>).fetch = async function patchedFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-
   // Only intercept POST requests to known AI API endpoints.
   const method = init?.method?.toUpperCase() ?? "GET";
   if (method !== "POST") {
@@ -520,12 +520,10 @@ const OriginalXHR = window.XMLHttpRequest;
 
 class PatchedXHR extends OriginalXHR {
   private _method = "GET";
-  private _url = "";
 
-  override open(method: string, url: string | URL, ...args: [boolean?, string?, string?]): void {
+  override open(method: string, url: string | URL, async?: boolean, username?: string, password?: string): void {
     this._method = method.toUpperCase();
-    this._url = typeof url === "string" ? url : url.toString();
-    return super.open(method, url, ...args);
+    return super.open(method, url, async ?? true, username, password);
   }
 
   override send(body?: Document | XMLHttpRequestBodyInit | null): void {
@@ -561,7 +559,7 @@ class PatchedXHR extends OriginalXHR {
   }
 }
 
-(window as Record<string, unknown>).XMLHttpRequest = PatchedXHR as typeof XMLHttpRequest;
+(window as unknown as Record<string, unknown>).XMLHttpRequest = PatchedXHR as typeof XMLHttpRequest;
 
 // ---------------------------------------------------------------------------
 // Body extraction helpers

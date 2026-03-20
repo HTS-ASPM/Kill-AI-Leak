@@ -1,0 +1,213 @@
+/* Kill-AI-Leak content overlay styles */
+.kal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.kal-dialog {
+  background: #1a1a2e;
+  border: 1px solid #16213e;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  color: #e0e0e0;
+}
+
+.kal-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kal-dialog-icon {
+  width: 32px;
+  height: 32px;
+  background: #ff4757;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.kal-dialog-icon.warning {
+  background: #ffa502;
+}
+
+.kal-dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.kal-dialog-body {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  color: #b0b0b0;
+}
+
+.kal-findings {
+  background: #0f0f23;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.kal-finding-item {
+  padding: 4px 0;
+  border-bottom: 1px solid #1a1a3a;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.kal-finding-item:last-child {
+  border-bottom: none;
+}
+
+.kal-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kal-badge-critical {
+  background: rgba(255, 71, 87, 0.2);
+  color: #ff4757;
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.kal-badge-high {
+  background: rgba(255, 165, 2, 0.2);
+  color: #ffa502;
+  border: 1px solid rgba(255, 165, 2, 0.3);
+}
+
+.kal-badge-medium {
+  background: rgba(255, 234, 0, 0.2);
+  color: #ffea00;
+  border: 1px solid rgba(255, 234, 0, 0.3);
+}
+
+.kal-badge-low {
+  background: rgba(46, 213, 115, 0.2);
+  color: #2ed573;
+  border: 1px solid rgba(46, 213, 115, 0.3);
+}
+
+.kal-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.kal-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kal-btn-block {
+  background: #ff4757;
+  color: white;
+}
+
+.kal-btn-block:hover {
+  background: #ff6b6b;
+}
+
+.kal-btn-anonymize {
+  background: #1e90ff;
+  color: white;
+}
+
+.kal-btn-anonymize:hover {
+  background: #3aa0ff;
+}
+
+.kal-btn-allow {
+  background: transparent;
+  color: #888;
+  border: 1px solid #333;
+}
+
+.kal-btn-allow:hover {
+  background: #222;
+  color: #aaa;
+}
+
+/* Floating anonymization indicator */
+.kal-anon-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #1e90ff;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(30, 144, 255, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.kal-anon-indicator .kal-dot {
+  width: 8px;
+  height: 8px;
+  background: #2ed573;
+  border-radius: 50%;
+  animation: kal-pulse 2s infinite;
+}
+
+@keyframes kal-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Status bar for extension popup */
+.kal-status-protected {
+  color: #2ed573;
+}
+
+.kal-status-blocked {
+  color: #ff4757;
+}
+
+.kal-status-monitoring {
+  color: #ffa502;
+}
+
+.kal-status-disabled {
+  color: #666;
+}

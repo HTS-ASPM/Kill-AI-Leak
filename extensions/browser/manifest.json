@@ -88,7 +88,7 @@
     "https://ollama.com/*"
   ],
   "background": {
-    "service_worker": "dist/background/service-worker.js",
+    "service_worker": "background/service-worker.js",
     "type": "module"
   },
   "content_scripts": [
@@ -115,13 +115,13 @@
         "https://huggingface.co/chat/*",
         "https://notebooklm.google.com/*"
       ],
-      "js": ["dist/content/scanner.js", "dist/content/anonymizer.js"],
-      "css": ["dist/content/overlay.css"],
+      "js": ["content/scanner.js", "content/anonymizer.js"],
+      "css": ["content/overlay.css"],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_popup": "dist/popup/popup.html",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -137,7 +137,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["dist/content/overlay.css"],
+      "resources": ["content/overlay.css"],
       "matches": ["<all_urls>"]
     }
   ]

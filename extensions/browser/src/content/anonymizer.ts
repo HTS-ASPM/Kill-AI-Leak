@@ -1,3 +1,5 @@
+export {};
+
 // ---------------------------------------------------------------------------
 // Kill-AI-Leak — Content Script: Client-Side PII Anonymizer
 //
@@ -181,7 +183,7 @@ function updateIndicator(): void {
   }
 }
 
-function hideIndicator(): void {
+export function hideIndicator(): void {
   indicatorEl?.remove();
   indicatorEl = null;
   document.getElementById("kail-anon-indicator-style")?.remove();

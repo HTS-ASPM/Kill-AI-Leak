@@ -110,7 +110,6 @@ const rateBuckets = new Map<string, RateBucket>();
 
 /** Queue of events waiting to be flushed to the API. */
 let eventQueue: SecurityEvent[] = [];
-const EVENT_FLUSH_INTERVAL_MS = 10_000;
 const EVENT_FLUSH_MAX_BATCH = 50;
 
 /** Set of temporarily allowed domains (user override from popup). */
@@ -231,7 +230,7 @@ function buildUrlFilters(): string[] {
 // Usage tracking
 // ---------------------------------------------------------------------------
 
-function recordUsage(url: string, method: string): void {
+function recordUsage(url: string, _method: string): void {
   const entry = getAIDomainEntry(url);
   if (!entry) return;
 
