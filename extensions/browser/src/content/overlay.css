@@ -1,213 +1,268 @@
-/* Kill-AI-Leak content overlay styles */
-.kal-overlay {
+/* ==========================================================================
+   Kill-AI-Leak — Warning Overlay Styles
+   Class prefix: kail-*  (must match scanner.ts HTML output)
+   ========================================================================== */
+
+/* ---------- Full-screen backdrop ---------- */
+#kail-warning-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 15, 35, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  animation: kail-fade-in 0.25s ease-out;
 }
 
-.kal-dialog {
+@keyframes kail-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- Dialog card ---------- */
+.kail-overlay-content {
   background: #1a1a2e;
-  border: 1px solid #16213e;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 480px;
-  width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  color: #e0e0e0;
+  color: #d4d4e0;
+  border: 1px solid #2a2a4a;
+  border-radius: 14px;
+  padding: 0;
+  max-width: 560px;
+  width: 92%;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(233, 69, 96, 0.15),
+    0 0 40px rgba(233, 69, 96, 0.08);
+  overflow: hidden;
+  animation: kail-slide-up 0.3s ease-out;
 }
 
-.kal-dialog-header {
+@keyframes kail-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- Header bar ---------- */
+.kail-overlay-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.kal-dialog-icon {
-  width: 32px;
-  height: 32px;
-  background: #ff4757;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.kal-dialog-icon.warning {
-  background: #ffa502;
-}
-
-.kal-dialog-title {
-  font-size: 18px;
-  font-weight: 600;
+  gap: 10px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #b91c3a 0%, #e94560 50%, #d63a52 100%);
   color: #ffffff;
+  font-size: 15px;
+  position: relative;
 }
 
-.kal-dialog-body {
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 20px;
-  color: #b0b0b0;
+.kail-overlay-header strong {
+  flex: 1;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
-.kal-findings {
+/* Close button (top-right of header) */
+.kail-overlay-header button {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.kail-overlay-header button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- Shield icon in header ---------- */
+.kail-shield-icon {
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* ---------- Body text ---------- */
+.kail-overlay-content > p {
+  padding: 14px 20px 0;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #a0a0b8;
+}
+
+/* ---------- Finding list ---------- */
+.kail-finding-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 20px;
+  max-height: 210px;
+  overflow-y: auto;
   background: #0f0f23;
   border: 1px solid #2a2a4a;
   border-radius: 8px;
-  padding: 12px;
-  margin: 12px 0;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 12px;
-  max-height: 200px;
-  overflow-y: auto;
 }
 
-.kal-finding-item {
-  padding: 4px 0;
-  border-bottom: 1px solid #1a1a3a;
+.kail-finding-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.kail-finding-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kail-finding-list::-webkit-scrollbar-thumb {
+  background: #3a3a5a;
+  border-radius: 3px;
+}
+
+.kail-finding-list li {
+  padding: 9px 14px;
+  border-bottom: 1px solid #1e1e3a;
+  font-size: 13px;
+  line-height: 1.45;
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
 
-.kal-finding-item:last-child {
+.kail-finding-list li:last-child {
   border-bottom: none;
 }
 
-.kal-badge {
-  display: inline-block;
+.kail-finding-list li strong {
+  color: #e0e0f0;
+  font-weight: 600;
+}
+
+/* ---------- Severity badges ---------- */
+.kail-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
-.kal-badge-critical {
-  background: rgba(255, 71, 87, 0.2);
-  color: #ff4757;
-  border: 1px solid rgba(255, 71, 87, 0.3);
+.kail-severity-critical {
+  background: rgba(233, 69, 96, 0.18);
+  color: #ff5a7a;
+  border: 1px solid rgba(233, 69, 96, 0.35);
 }
 
-.kal-badge-high {
-  background: rgba(255, 165, 2, 0.2);
-  color: #ffa502;
-  border: 1px solid rgba(255, 165, 2, 0.3);
+.kail-severity-high {
+  background: rgba(247, 127, 0, 0.18);
+  color: #ffa040;
+  border: 1px solid rgba(247, 127, 0, 0.35);
 }
 
-.kal-badge-medium {
-  background: rgba(255, 234, 0, 0.2);
-  color: #ffea00;
-  border: 1px solid rgba(255, 234, 0, 0.3);
+.kail-severity-medium {
+  background: rgba(234, 179, 8, 0.18);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.35);
 }
 
-.kal-badge-low {
-  background: rgba(46, 213, 115, 0.2);
-  color: #2ed573;
-  border: 1px solid rgba(46, 213, 115, 0.3);
+.kail-severity-low {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
 }
 
-.kal-dialog-actions {
+/* ---------- "...and N more" ---------- */
+.kail-more {
+  padding: 0 20px 6px;
+  margin: 0;
+  font-size: 12px;
+  color: #6a6a88;
+  font-style: italic;
+}
+
+/* ---------- Action buttons row ---------- */
+.kail-overlay-actions {
   display: flex;
   gap: 10px;
-  justify-content: flex-end;
+  padding: 16px 20px 20px;
 }
 
-.kal-btn {
-  padding: 8px 20px;
-  border-radius: 8px;
+.kail-btn {
+  flex: 1;
+  padding: 10px 14px;
   border: none;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  text-align: center;
+  letter-spacing: 0.01em;
 }
 
-.kal-btn-block {
-  background: #ff4757;
-  color: white;
+.kail-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.kal-btn-block:hover {
-  background: #ff6b6b;
+.kail-btn:active {
+  transform: translateY(0);
 }
 
-.kal-btn-anonymize {
-  background: #1e90ff;
-  color: white;
+/* Anonymize & Send — blue */
+.kail-btn-primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #ffffff;
 }
 
-.kal-btn-anonymize:hover {
-  background: #3aa0ff;
+.kail-btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
 }
 
-.kal-btn-allow {
+/* Block Submission — red */
+.kail-btn-danger {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #ffffff;
+}
+
+.kail-btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+}
+
+/* Allow Anyway — gray outline */
+.kail-btn-secondary {
   background: transparent;
-  color: #888;
-  border: 1px solid #333;
+  color: #9ca3af;
+  border: 1px solid #4a4a6a;
 }
 
-.kal-btn-allow:hover {
-  background: #222;
-  color: #aaa;
-}
-
-/* Floating anonymization indicator */
-.kal-anon-indicator {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #1e90ff;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  z-index: 2147483646;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(30, 144, 255, 0.3);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.kal-anon-indicator .kal-dot {
-  width: 8px;
-  height: 8px;
-  background: #2ed573;
-  border-radius: 50%;
-  animation: kal-pulse 2s infinite;
-}
-
-@keyframes kal-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* Status bar for extension popup */
-.kal-status-protected {
-  color: #2ed573;
-}
-
-.kal-status-blocked {
-  color: #ff4757;
-}
-
-.kal-status-monitoring {
-  color: #ffa502;
-}
-
-.kal-status-disabled {
-  color: #666;
+.kail-btn-secondary:hover {
+  background: #2a2a44;
+  color: #d4d4e0;
+  border-color: #6a6a8a;
 }
