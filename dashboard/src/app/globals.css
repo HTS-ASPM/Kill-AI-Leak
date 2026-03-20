@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-gray-200 antialiased;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-surface-400;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-600;
+  }
+
+  /* Form inputs dark theme override */
+  input,
+  textarea,
+  select {
+    @apply border-surface-300 bg-surface-200 text-gray-200 placeholder-gray-500;
+  }
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply border-accent/50 ring-accent/30;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-surface-300 bg-surface-100 p-5;
+  }
+  .card-header {
+    @apply mb-4 flex items-center justify-between;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-gray-200;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-surface;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-lg border border-surface-300 bg-surface-200 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-surface-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-accent/30 focus:ring-offset-2 focus:ring-offset-surface;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 focus:ring-offset-surface;
+  }
+  .input {
+    @apply block w-full rounded-lg border border-surface-300 bg-surface-200 px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30;
+  }
+  .select {
+    @apply block rounded-lg border border-surface-300 bg-surface-200 px-3 py-2 text-sm text-gray-200 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30;
+  }
+  .table-wrapper {
+    @apply overflow-hidden rounded-xl border border-surface-300 bg-surface-100;
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "name": "kill-ai-leak",
+  "displayName": "Kill-AI-Leak",
+  "description": "AI security guardrails for VS Code — intercept AI assistant traffic, scan for vulnerabilities, detect prompt injection, and prevent data leaks.",
+  "version": "1.0.0",
+  "publisher": "kill-ai-leak",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Security",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "security",
+    "guardrails",
+    "llm",
+    "prompt-injection",
+    "pii",
+    "secrets",
+    "copilot",
+    "cursor"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "killAiLeak.enable",
+        "title": "Kill-AI-Leak: Enable Protection",
+        "category": "Kill-AI-Leak"
+      },
+      {
+        "command": "killAiLeak.disable",
+        "title": "Kill-AI-Leak: Disable Protection",
+        "category": "Kill-AI-Leak"
+      },
+      {
+        "command": "killAiLeak.scanFile",
+        "title": "Kill-AI-Leak: Scan Current File",
+        "category": "Kill-AI-Leak"
+      },
+      {
+        "command": "killAiLeak.status",
+        "title": "Kill-AI-Leak: Show Status",
+        "category": "Kill-AI-Leak"
+      },
+      {
+        "command": "killAiLeak.scanWorkspace",
+        "title": "Kill-AI-Leak: Scan Workspace",
+        "category": "Kill-AI-Leak"
+      }
+    ],
+    "configuration": {
+      "title": "Kill-AI-Leak",
+      "properties": {
+        "killAiLeak.serverUrl": {
+          "type": "string",
+          "default": "https://api.kill-ai-leak.local",
+          "description": "Kill-AI-Leak API server URL."
+        },
+        "killAiLeak.authToken": {
+          "type": "string",
+          "default": "",
+          "description": "Authentication token for the Kill-AI-Leak API."
+        },
+        "killAiLeak.sensitivityLevel": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "default": "medium",
+          "description": "Detection sensitivity level. Higher = more findings but more false positives."
+        },
+        "killAiLeak.autoScan": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan files on save."
+        },
+        "killAiLeak.proxyEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable local proxy for intercepting AI assistant traffic."
+        },
+        "killAiLeak.proxyPort": {
+          "type": "number",
+          "default": 18080,
+          "description": "Port for the local interception proxy."
+        },
+        "killAiLeak.watchAgentFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch for changes to .cursorrules, AGENTS.md, CLAUDE.md files."
+        },
+        "killAiLeak.scanOnPaste": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan clipboard content when pasting AI-generated code."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./tsconfig.json",
+    "build:dev": "tsc -p ./tsconfig.json --watch",
+    "lint": "eslint src/ --ext .ts",
+    "lint:fix": "eslint src/ --ext .ts --fix",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.0"
+  }
+}

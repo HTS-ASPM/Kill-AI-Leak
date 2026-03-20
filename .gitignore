@@ -4,6 +4,7 @@ api-server
 observer
 processor
 cli
+mcp-gateway
 bin/
 *.exe
 *.exe~
