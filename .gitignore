@@ -44,3 +44,9 @@ vendor/
 
 # Generated
 *.pb.go
+
+# Node
+node_modules/
+.next/
+.turbo/
+package-lock.json

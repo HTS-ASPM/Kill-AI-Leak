@@ -141,6 +141,47 @@ func (e *Engine) Evaluate(evalCtx *EvalContext) (*models.PipelineResult, error) 
 	return result, nil
 }
 
+// evaluateStages runs a subset of stages (used by the adapter to split input/output).
+func (e *Engine) evaluateStages(evalCtx *EvalContext, stages []models.GuardrailStage) (*models.PipelineResult, error) {
+	if evalCtx == nil {
+		return nil, fmt.Errorf("guardrails: EvalContext must not be nil")
+	}
+
+	pipelineStart := time.Now()
+	mode := evalCtx.GetEffectiveMode()
+
+	if mode == models.ModeOff {
+		return &models.PipelineResult{
+			FinalDecision:  models.DecisionAllow,
+			TotalLatencyMs: time.Since(pipelineStart).Milliseconds(),
+		}, nil
+	}
+
+	var allEvals []models.GuardrailEvaluation
+
+	for _, stage := range stages {
+		rules := e.registry.GetByStage(stage)
+		if len(rules) == 0 {
+			continue
+		}
+
+		stageEvals, err := e.evaluateStage(evalCtx, stage, rules)
+		if err != nil {
+			return nil, fmt.Errorf("guardrails: stage %s: %w", stage, err)
+		}
+
+		allEvals = append(allEvals, stageEvals...)
+		e.publishStageEvent(evalCtx, stage, stageEvals)
+
+		if mode == models.ModeEnforce && stageHasBlock(stageEvals) {
+			break
+		}
+	}
+
+	result := BuildPipelineResult(allEvals, mode, time.Since(pipelineStart).Milliseconds())
+	return result, nil
+}
+
 // EvaluateStage runs a single stage. Exported so callers can run individual
 // stages for testing or partial re-evaluation.
 func (e *Engine) EvaluateStage(evalCtx *EvalContext, stage models.GuardrailStage) ([]models.GuardrailEvaluation, error) {

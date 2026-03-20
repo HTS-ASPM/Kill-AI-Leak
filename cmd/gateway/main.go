@@ -13,6 +13,14 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/code"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/injection"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/jailbreak"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/pii"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/secrets"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/toxicity"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/proxy"
 )
 
@@ -62,12 +70,50 @@ func run() error {
 	hc.RegisterComponent("guardrails")
 	hc.RegisterComponent("proxy")
 
-	// --- Initialize guardrail engine ---
-	// The engine is pluggable. For now we use a no-op placeholder so the
-	// gateway boots cleanly. Real detection rules are wired in by the
-	// platform initialisation layer.
-	var engine proxy.GuardrailEngine // nil → guardrails disabled at runtime
-	hc.SetComponentHealth("guardrails", health.StatusHealthy, "engine loaded (no-op)")
+	// --- Initialize guardrail engine with detection rules ---
+	var engine proxy.GuardrailEngine
+
+	if cfg.Guardrails.Enabled {
+		registry := guardrails.NewRegistry()
+
+		// Register all detection rules with default config.
+		rules := []guardrails.Rule{
+			pii.New(),
+			secrets.New(),
+			injection.New(),
+			jailbreak.New(),
+			toxicity.New(),
+			code.New(),
+		}
+		for _, rule := range rules {
+			ruleCfg := &models.GuardrailRuleConfig{
+				ID:       rule.ID(),
+				Name:     rule.Name(),
+				Stage:    rule.Stage(),
+				Category: rule.Category(),
+				Mode:     models.EnforcementMode(cfg.Guardrails.DefaultMode),
+				Enabled:  true,
+			}
+			if err := registry.Register(rule, ruleCfg); err != nil {
+				log.Warn(ctx, "failed to register rule", map[string]any{
+					"rule": rule.ID(),
+					"error": err.Error(),
+				})
+			}
+		}
+
+		grEngine := guardrails.NewEngine(registry, guardrails.DefaultEngineConfig())
+		engine = guardrails.NewEngineAdapter(grEngine)
+
+		log.Info(ctx, "guardrail engine initialized", map[string]any{
+			"rules_loaded": len(registry.All()),
+			"mode":         cfg.Guardrails.DefaultMode,
+		})
+		hc.SetComponentHealth("guardrails", health.StatusHealthy, fmt.Sprintf("%d rules loaded", len(registry.All())))
+	} else {
+		log.Info(ctx, "guardrails disabled")
+		hc.SetComponentHealth("guardrails", health.StatusHealthy, "disabled")
+	}
 
 	// --- Create proxy ---
 	llmProxy, err := proxy.NewLLMProxy(cfg, engine, log)
@@ -82,8 +128,8 @@ func run() error {
 	handler.Register(mux)
 
 	// --- Build middleware chain ---
-	registry := middleware.NewServiceRegistry(cfg.Auth)
-	authMw := middleware.Auth(cfg.Auth, registry, log)
+	serviceRegistry := middleware.NewServiceRegistry(cfg.Auth)
+	authMw := middleware.Auth(cfg.Auth, serviceRegistry, log)
 
 	root := proxy.Chain(
 		mux,
