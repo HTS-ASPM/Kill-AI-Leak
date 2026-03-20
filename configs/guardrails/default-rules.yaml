@@ -1,0 +1,776 @@
+# =============================================================================
+# Kill AI Leak - Default Guardrail Rules Catalog
+# =============================================================================
+# All 54 guardrail rules (GR-001 through GR-054) with their default
+# configuration. Each entry follows the GuardrailRuleConfig struct schema.
+#
+# Enforcement modes:
+#   enforce  - actively block/anonymize/modify traffic
+#   monitor  - log violations but do not block (shadow mode)
+#   off      - rule is loaded but does not execute
+#
+# Stages:
+#   pre_input   - before any content inspection (auth, rate limits)
+#   input       - prompt/request analysis
+#   routing     - provider selection and data residency
+#   output      - response analysis
+#   post_output - async post-processing (logging, analytics)
+#   behavioral  - multi-turn / session-level analysis
+# =============================================================================
+
+rules:
+
+  # ===========================================================================
+  # PRE-INPUT STAGE (GR-001 to GR-009)
+  # Authentication, authorization, rate limiting, and allowlisting
+  # ===========================================================================
+
+  - id: GR-001
+    name: API Key Authentication
+    description: Validates that the request contains a valid API key or bearer token.
+    stage: pre_input
+    category: auth
+    mode: enforce
+    priority: 1
+    enabled: true
+    config:
+      header_names:
+        - Authorization
+        - X-API-Key
+      require_bearer: true
+
+  - id: GR-002
+    name: mTLS Client Verification
+    description: Verifies the client certificate against the trusted CA bundle for service-to-service calls.
+    stage: pre_input
+    category: auth
+    mode: enforce
+    priority: 2
+    enabled: true
+    config:
+      ca_bundle_path: /etc/kill-ai-leak/ca-bundle.crt
+      verify_cn: true
+
+  - id: GR-003
+    name: RBAC Policy Check
+    description: Evaluates role-based access control rules to determine if the actor may use the requested provider and model.
+    stage: pre_input
+    category: auth
+    mode: enforce
+    priority: 3
+    enabled: true
+    config:
+      policy_path: /etc/kill-ai-leak/policies
+
+  - id: GR-004
+    name: Per-User Rate Limit
+    description: Enforces per-user request rate limits using a sliding window counter.
+    stage: pre_input
+    category: rate_limit
+    mode: enforce
+    priority: 10
+    enabled: true
+    config:
+      window: 60s
+      max_requests: 60
+
+  - id: GR-005
+    name: Per-Service Rate Limit
+    description: Enforces per-service aggregate rate limits.
+    stage: pre_input
+    category: rate_limit
+    mode: enforce
+    priority: 11
+    enabled: true
+    config:
+      window: 60s
+      max_requests: 600
+
+  - id: GR-006
+    name: Token Budget Enforcement
+    description: Tracks cumulative token usage per actor and enforces daily/monthly budgets.
+    stage: pre_input
+    category: rate_limit
+    mode: monitor
+    priority: 12
+    enabled: true
+    config:
+      daily_token_limit: 1000000
+      monthly_cost_limit_usd: 500.00
+
+  - id: GR-007
+    name: Provider Allowlist
+    description: Checks the target provider against the policy's allow/deny lists.
+    stage: pre_input
+    category: allowlist
+    mode: enforce
+    priority: 20
+    enabled: true
+    config: {}
+
+  - id: GR-008
+    name: Model Allowlist
+    description: Checks the target model against the policy's allow/deny lists.
+    stage: pre_input
+    category: allowlist
+    mode: enforce
+    priority: 21
+    enabled: true
+    config: {}
+
+  - id: GR-009
+    name: Shadow AI Detection
+    description: Detects calls from services not enrolled in the gateway inventory (shadow AI usage).
+    stage: pre_input
+    category: shadow_ai
+    mode: monitor
+    priority: 30
+    enabled: true
+    config:
+      alert_on_unknown_service: true
+
+  # ===========================================================================
+  # INPUT STAGE (GR-010 to GR-024)
+  # Prompt content analysis: PII, secrets, injection, jailbreak, topics
+  # ===========================================================================
+
+  - id: GR-010
+    name: PII Detection
+    description: Scans prompt text for personally identifiable information using regex patterns and NER models.
+    stage: input
+    category: pii
+    mode: enforce
+    priority: 100
+    enabled: true
+    config:
+      severity_threshold: low
+      block: false
+      enabled_types:
+        - email
+        - phone
+        - ssn
+        - credit_card
+        - full_name
+        - address
+        - dob
+        - passport
+        - medical_id
+        - bank_account
+        - drivers_license
+
+  - id: GR-011
+    name: PII Anonymization
+    description: Replaces detected PII with reversible placeholder tokens before forwarding to the provider.
+    stage: input
+    category: pii
+    mode: enforce
+    priority: 101
+    enabled: true
+    config:
+      placeholder_format: "<PII_{type}_{index}>"
+      reversible: true
+
+  - id: GR-012
+    name: Secret Detection
+    description: Detects API keys, tokens, passwords, and other credentials in prompts.
+    stage: input
+    category: secrets
+    mode: enforce
+    priority: 110
+    enabled: true
+    config:
+      patterns:
+        - aws_access_key
+        - github_token
+        - jwt
+        - generic_api_key
+        - private_key
+        - connection_string
+      block_on_detect: true
+
+  - id: GR-013
+    name: Prompt Injection Detection
+    description: Scores prompts for injection attacks using heuristic patterns and an ML classifier.
+    stage: input
+    category: injection
+    mode: enforce
+    priority: 120
+    enabled: true
+    config:
+      threshold: 0.85
+      use_ml_classifier: true
+      block_above: 0.90
+
+  - id: GR-014
+    name: Jailbreak Detection
+    description: Detects jailbreak attempts including DAN, roleplay exploits, and encoding-based evasion.
+    stage: input
+    category: jailbreak
+    mode: enforce
+    priority: 121
+    enabled: true
+    config:
+      threshold: 0.80
+      known_patterns:
+        - dan_mode
+        - roleplay_exploit
+        - encoding_evasion
+        - multi_persona
+
+  - id: GR-015
+    name: Topic Blocklist
+    description: Blocks prompts that discuss prohibited topics such as weapons, illegal activities, or self-harm.
+    stage: input
+    category: brand_safety
+    mode: enforce
+    priority: 130
+    enabled: true
+    config:
+      blocked_topics:
+        - weapons_manufacturing
+        - illegal_activity
+        - self_harm
+        - child_exploitation
+
+  - id: GR-016
+    name: Topic Allowlist
+    description: In restrictive environments, only allows prompts that match an explicit list of approved topics.
+    stage: input
+    category: brand_safety
+    mode: off
+    priority: 131
+    enabled: false
+    config:
+      allowed_topics: []
+
+  - id: GR-017
+    name: Input Toxicity Filter
+    description: Scores prompt text for toxic, hateful, or abusive language.
+    stage: input
+    category: toxicity
+    mode: monitor
+    priority: 140
+    enabled: true
+    config:
+      threshold: 0.75
+      categories:
+        - hate_speech
+        - harassment
+        - threat
+        - profanity
+
+  - id: GR-018
+    name: Max Token Guard
+    description: Rejects requests where the estimated input token count exceeds the configured maximum.
+    stage: input
+    category: rate_limit
+    mode: enforce
+    priority: 150
+    enabled: true
+    config:
+      max_tokens: 32000
+
+  - id: GR-019
+    name: Encoding Evasion Detection
+    description: Detects attempts to bypass filters using base64, ROT13, Unicode homoglyphs, or other encoding tricks.
+    stage: input
+    category: injection
+    mode: monitor
+    priority: 122
+    enabled: true
+    config:
+      detect_base64: true
+      detect_rot13: true
+      detect_homoglyphs: true
+      decode_and_rescan: true
+
+  - id: GR-020
+    name: System Prompt Protection
+    description: Detects attempts to extract or override the system prompt through indirect injection.
+    stage: input
+    category: injection
+    mode: enforce
+    priority: 123
+    enabled: true
+    config:
+      protect_system_prompt: true
+      detect_extraction_attempts: true
+
+  - id: GR-021
+    name: Source Code Leak Prevention
+    description: Detects and blocks proprietary source code from being sent as prompt context.
+    stage: input
+    category: exfiltration
+    mode: monitor
+    priority: 160
+    enabled: true
+    config:
+      detect_code_blocks: true
+      max_code_lines: 500
+      block_if_internal_repo: true
+
+  - id: GR-022
+    name: Compliance Metadata Tagging
+    description: Tags requests with compliance-relevant metadata (data classification, regulatory scope).
+    stage: input
+    category: compliance
+    mode: monitor
+    priority: 170
+    enabled: true
+    config:
+      auto_classify: true
+      classification_levels:
+        - public
+        - internal
+        - confidential
+        - restricted
+
+  - id: GR-023
+    name: Multi-Turn Context Accumulation
+    description: Analyzes accumulated context across turns to detect gradual data exfiltration or prompt injection escalation.
+    stage: input
+    category: exfiltration
+    mode: monitor
+    priority: 180
+    enabled: true
+    config:
+      max_session_turns: 50
+      escalation_threshold: 0.70
+
+  - id: GR-024
+    name: Structured Output Validation
+    description: Validates that requests with structured output schemas (JSON mode, function calling) do not contain injection payloads in schema definitions.
+    stage: input
+    category: injection
+    mode: monitor
+    priority: 124
+    enabled: true
+    config:
+      validate_json_schemas: true
+      validate_function_defs: true
+
+  # ===========================================================================
+  # ROUTING STAGE (GR-025 to GR-033)
+  # Provider selection, data residency, and traffic shaping
+  # ===========================================================================
+
+  - id: GR-025
+    name: Data Residency Router
+    description: Routes requests to region-appropriate provider endpoints based on data classification and regulatory requirements.
+    stage: routing
+    category: data_residency
+    mode: enforce
+    priority: 200
+    enabled: true
+    config:
+      default_region: us-east-1
+
+  - id: GR-026
+    name: EU Data Residency (GDPR)
+    description: Ensures requests containing EU personal data are routed only to EU-hosted endpoints.
+    stage: routing
+    category: data_residency
+    mode: enforce
+    priority: 201
+    enabled: true
+    config:
+      required_regions:
+        - eu-west-1
+        - eu-central-1
+      detect_eu_data: true
+
+  - id: GR-027
+    name: Provider Failover
+    description: Automatically routes to a fallback provider when the primary is unavailable or rate-limited.
+    stage: routing
+    category: allowlist
+    mode: enforce
+    priority: 210
+    enabled: true
+    config:
+      failover_order:
+        - openai
+        - anthropic
+        - gemini
+      health_check_interval: 30s
+
+  - id: GR-028
+    name: Cost-Aware Routing
+    description: Routes requests to the most cost-effective provider/model that meets quality requirements.
+    stage: routing
+    category: rate_limit
+    mode: monitor
+    priority: 220
+    enabled: true
+    config:
+      optimize_for: cost
+      quality_floor: 0.80
+
+  - id: GR-029
+    name: Latency-Aware Routing
+    description: Routes requests to the provider with the lowest observed P95 latency.
+    stage: routing
+    category: rate_limit
+    mode: off
+    priority: 221
+    enabled: false
+    config:
+      optimize_for: latency
+      latency_window: 5m
+
+  - id: GR-030
+    name: Canary Routing
+    description: Routes a configurable percentage of traffic to a canary provider or model version for A/B testing.
+    stage: routing
+    category: allowlist
+    mode: off
+    priority: 230
+    enabled: false
+    config:
+      canary_percentage: 5
+      canary_provider: ""
+      canary_model: ""
+
+  - id: GR-031
+    name: Sensitive Data Routing Block
+    description: Blocks routing to non-approved providers when the request contains sensitive data classifications.
+    stage: routing
+    category: data_residency
+    mode: enforce
+    priority: 202
+    enabled: true
+    config:
+      sensitive_classifications:
+        - confidential
+        - restricted
+      approved_providers:
+        - bedrock
+        - azure_openai
+
+  - id: GR-032
+    name: HIPAA Routing Enforcement
+    description: Ensures requests with PHI markers are routed only to HIPAA-eligible provider endpoints.
+    stage: routing
+    category: compliance
+    mode: enforce
+    priority: 203
+    enabled: true
+    config:
+      hipaa_providers:
+        - bedrock
+        - azure_openai
+      detect_phi: true
+
+  - id: GR-033
+    name: Model Version Pinning
+    description: Ensures requests target a specific, approved model version rather than a floating alias.
+    stage: routing
+    category: compliance
+    mode: monitor
+    priority: 240
+    enabled: true
+    config:
+      require_pinned_version: false
+      warn_on_floating: true
+
+  # ===========================================================================
+  # OUTPUT STAGE (GR-034 to GR-045)
+  # Response analysis: toxicity, code safety, PII leakage, prompt leakage
+  # ===========================================================================
+
+  - id: GR-034
+    name: Output Toxicity Filter
+    description: Scores LLM responses for toxic, harmful, or inappropriate content.
+    stage: output
+    category: toxicity
+    mode: enforce
+    priority: 300
+    enabled: true
+    config:
+      threshold: 0.80
+      categories:
+        - hate_speech
+        - harassment
+        - sexual_content
+        - violence
+
+  - id: GR-035
+    name: Output PII Leakage Detection
+    description: Scans LLM responses for PII that should not be present, especially training data memorization.
+    stage: output
+    category: pii
+    mode: enforce
+    priority: 310
+    enabled: true
+    config:
+      cross_reference_input: true
+      block_novel_pii: true
+
+  - id: GR-036
+    name: PII De-Anonymization
+    description: Reverses placeholder tokens in responses back to original values using the session anonymization map.
+    stage: output
+    category: pii
+    mode: enforce
+    priority: 311
+    enabled: true
+    config:
+      require_anon_map: true
+
+  - id: GR-037
+    name: Generated Code Vulnerability Scan
+    description: Scans code blocks in LLM responses for known vulnerability patterns (SQL injection, XSS, path traversal, etc.).
+    stage: output
+    category: code_safety
+    mode: monitor
+    priority: 320
+    enabled: true
+    config:
+      languages:
+        - python
+        - javascript
+        - go
+        - java
+        - rust
+      vulnerability_patterns:
+        - sql_injection
+        - xss
+        - path_traversal
+        - command_injection
+        - insecure_deserialization
+
+  - id: GR-038
+    name: Insecure Code Pattern Detection
+    description: Detects insecure coding patterns such as hardcoded credentials, weak crypto, or disabled TLS verification.
+    stage: output
+    category: code_safety
+    mode: monitor
+    priority: 321
+    enabled: true
+    config:
+      patterns:
+        - hardcoded_credentials
+        - weak_crypto
+        - disabled_tls
+        - eval_usage
+        - unsafe_deserialization
+
+  - id: GR-039
+    name: License Compliance Check
+    description: Checks generated code for license-encumbered snippets (GPL, AGPL) that may violate policy.
+    stage: output
+    category: compliance
+    mode: monitor
+    priority: 330
+    enabled: true
+    config:
+      blocked_licenses:
+        - GPL-3.0
+        - AGPL-3.0
+      similarity_threshold: 0.90
+
+  - id: GR-040
+    name: Prompt Leakage Detection
+    description: Detects when the LLM response contains fragments of the system prompt or internal instructions.
+    stage: output
+    category: exfiltration
+    mode: enforce
+    priority: 340
+    enabled: true
+    config:
+      similarity_threshold: 0.80
+      min_fragment_length: 20
+
+  - id: GR-041
+    name: Hallucination Indicator
+    description: Flags responses with low factual confidence or inconsistencies with the provided context.
+    stage: output
+    category: brand_safety
+    mode: monitor
+    priority: 350
+    enabled: true
+    config:
+      confidence_threshold: 0.60
+      check_context_grounding: true
+
+  - id: GR-042
+    name: Brand Safety Filter
+    description: Detects responses that could cause reputational damage, contain competitor mentions, or violate brand guidelines.
+    stage: output
+    category: brand_safety
+    mode: monitor
+    priority: 360
+    enabled: true
+    config:
+      blocked_terms: []
+      competitor_names: []
+
+  - id: GR-043
+    name: Response Size Guard
+    description: Enforces maximum response size limits to prevent runaway token generation costs.
+    stage: output
+    category: rate_limit
+    mode: enforce
+    priority: 370
+    enabled: true
+    config:
+      max_response_tokens: 16000
+      max_response_bytes: 1048576  # 1MB
+
+  - id: GR-044
+    name: Structured Output Conformance
+    description: Validates that LLM responses conform to the expected JSON schema or structured output format.
+    stage: output
+    category: code_safety
+    mode: monitor
+    priority: 380
+    enabled: true
+    config:
+      validate_json: true
+      strict_schema: false
+
+  - id: GR-045
+    name: Watermark Injection
+    description: Injects invisible watermarks into LLM responses for provenance tracking and leak detection.
+    stage: output
+    category: compliance
+    mode: off
+    priority: 390
+    enabled: false
+    config:
+      method: unicode_steganography
+      include_timestamp: true
+      include_actor_id: true
+
+  # ===========================================================================
+  # POST-OUTPUT STAGE (GR-046 to GR-049)
+  # Async logging, analytics, and audit trail
+  # ===========================================================================
+
+  - id: GR-046
+    name: Audit Log Writer
+    description: Writes a complete audit record of the request/response to the event store for compliance.
+    stage: post_output
+    category: compliance
+    mode: enforce
+    priority: 400
+    enabled: true
+    config:
+      include_prompt: true
+      include_response: true
+      hash_pii: true
+      retention_days: 365
+
+  - id: GR-047
+    name: Cost Accounting
+    description: Calculates and records the cost of each request based on provider pricing and token counts.
+    stage: post_output
+    category: rate_limit
+    mode: enforce
+    priority: 410
+    enabled: true
+    config:
+      pricing_source: built_in
+      aggregate_by:
+        - team
+        - service
+        - namespace
+
+  - id: GR-048
+    name: Anomaly Detection Feed
+    description: Publishes request metadata to the anomaly detection pipeline for pattern analysis.
+    stage: post_output
+    category: shadow_ai
+    mode: monitor
+    priority: 420
+    enabled: true
+    config:
+      publish_to: nats
+      subject: killaileak.anomaly.feed
+
+  - id: GR-049
+    name: Usage Analytics Export
+    description: Exports aggregated usage metrics to external observability platforms.
+    stage: post_output
+    category: compliance
+    mode: monitor
+    priority: 430
+    enabled: true
+    config:
+      export_to:
+        - prometheus
+        - clickhouse
+      flush_interval: 10s
+
+  # ===========================================================================
+  # BEHAVIORAL STAGE (GR-050 to GR-054)
+  # Multi-turn, session, and agent behavior analysis
+  # ===========================================================================
+
+  - id: GR-050
+    name: Agent Filesystem Sandbox
+    description: Enforces filesystem access policies for AI agents, restricting read/write/delete paths.
+    stage: behavioral
+    category: agent_control
+    mode: enforce
+    priority: 500
+    enabled: true
+    config:
+      default_deny: true
+      audit_all_access: true
+
+  - id: GR-051
+    name: Agent Command Execution Guard
+    description: Controls which shell commands AI agents are allowed to execute, with approval gates for dangerous operations.
+    stage: behavioral
+    category: agent_control
+    mode: enforce
+    priority: 501
+    enabled: true
+    config:
+      default_deny: true
+      dangerous_commands:
+        - rm -rf
+        - dd
+        - mkfs
+        - iptables
+        - chmod 777
+
+  - id: GR-052
+    name: Agent Network Egress Control
+    description: Controls outbound network access for AI agents, preventing unauthorized data exfiltration.
+    stage: behavioral
+    category: agent_control
+    mode: enforce
+    priority: 502
+    enabled: true
+    config:
+      default_deny_outbound: false
+      blocked_destinations:
+        - "*.onion"
+        - "pastebin.com"
+
+  - id: GR-053
+    name: Session Drift Detection
+    description: Monitors multi-turn conversations for topic drift away from the original intent, which may indicate social engineering.
+    stage: behavioral
+    category: exfiltration
+    mode: monitor
+    priority: 510
+    enabled: true
+    config:
+      drift_threshold: 0.60
+      window_turns: 10
+
+  - id: GR-054
+    name: Recursive Agent Loop Detection
+    description: Detects and breaks infinite or excessively long agent tool-use loops that waste resources.
+    stage: behavioral
+    category: agent_control
+    mode: enforce
+    priority: 520
+    enabled: true
+    config:
+      max_iterations: 25
+      similarity_threshold: 0.90
+      break_action: block

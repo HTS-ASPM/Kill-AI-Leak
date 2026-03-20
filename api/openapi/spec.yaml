@@ -1,0 +1,1914 @@
+openapi: "3.0.3"
+
+info:
+  title: Kill-AI-Leak API
+  description: |
+    REST API for the Kill-AI-Leak AI security platform.
+
+    Kill-AI-Leak provides real-time guardrails, inventory management, policy
+    enforcement, and event auditing for AI/LLM workloads across your
+    organization. Every request must include a valid bearer token and an
+    application identifier header.
+  version: "1.0.0"
+  contact:
+    name: Kill-AI-Leak Maintainers
+    url: https://github.com/kill-ai-leak/kill-ai-leak
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.kill-ai-leak.local
+    description: Default cluster-local endpoint
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - BearerAuth: []
+    AppID: []
+
+tags:
+  - name: protect
+    description: Guardrail evaluation proxy for LLM calls
+  - name: inventory
+    description: AI service inventory (AIBOM)
+  - name: events
+    description: Security event stream
+  - name: policies
+    description: AI security policy management
+  - name: guardrails
+    description: Guardrail rule configuration and dry-run evaluation
+  - name: stats
+    description: Dashboard statistics and cost attribution
+  - name: health
+    description: Health and readiness probes
+
+paths:
+  # ---------- protect ----------
+  /api/v1/protect:
+    post:
+      operationId: evaluateGuardrail
+      summary: Evaluate prompt through guardrails and proxy to LLM
+      description: |
+        Main guardrail evaluation endpoint. Accepts an LLM prompt, runs it
+        through all enabled guardrail rules, and either forwards the
+        (potentially modified) prompt to the upstream LLM provider or blocks
+        the request. The upstream LLM response is also evaluated through
+        output-stage guardrails before being returned.
+      tags: [protect]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProtectRequest"
+            example:
+              provider: openai
+              model: gpt-4o
+              prompt: "Summarize last quarter financials for Acme Corp."
+              session_id: "sess_01HZ3XJKB0001"
+              actor:
+                type: user
+                id: "user-42"
+                name: Jane Doe
+                team: finance
+              headers:
+                Authorization: "Bearer sk-..."
+      responses:
+        "200":
+          description: Guardrail evaluation completed; upstream LLM response returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Request blocked by guardrail policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectBlockedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          description: Upstream LLM provider returned an error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Upstream LLM provider timed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ---------- inventory ----------
+  /api/v1/inventory:
+    get:
+      operationId: listInventory
+      summary: List all discovered AI services
+      description: Returns a paginated list of all discovered AI services (AIBOM).
+      tags: [inventory]
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/SortOrderParam"
+        - name: namespace
+          in: query
+          description: Filter by Kubernetes namespace.
+          schema:
+            type: string
+        - name: provider
+          in: query
+          description: Filter by LLM provider name.
+          schema:
+            type: string
+        - name: team
+          in: query
+          description: Filter by owning team.
+          schema:
+            type: string
+        - name: exposure_type
+          in: query
+          description: Filter by exposure type.
+          schema:
+            type: string
+            enum: [internal, external]
+        - name: gateway_enrolled
+          in: query
+          description: Filter by gateway enrollment status.
+          schema:
+            type: boolean
+        - name: min_risk_score
+          in: query
+          description: Return services with risk score >= this value.
+          schema:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 100
+        - name: discovered_after
+          in: query
+          description: Return services discovered after this timestamp (RFC 3339).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated list of AI services.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/inventory/{service_id}:
+    get:
+      operationId: getService
+      summary: Get a specific AI service
+      description: Returns the full details of a single discovered AI service.
+      tags: [inventory]
+      parameters:
+        - name: service_id
+          in: path
+          required: true
+          description: Unique service identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Service details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIService"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------- events ----------
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      summary: Query security events
+      description: |
+        Returns a paginated, filterable list of security events. Supports
+        filtering by source, severity, actor, time range, and more.
+      tags: [events]
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/SortOrderParam"
+        - name: source
+          in: query
+          description: Filter by event source.
+          schema:
+            type: string
+            enum:
+              - kernel_observer
+              - inline_gateway
+              - browser
+              - ide
+              - mcp_gateway
+              - cicd
+        - name: severity
+          in: query
+          description: Filter by minimum severity level.
+          schema:
+            type: string
+            enum: [info, low, medium, high, critical]
+        - name: actor_id
+          in: query
+          description: Filter by actor ID.
+          schema:
+            type: string
+        - name: actor_type
+          in: query
+          description: Filter by actor type.
+          schema:
+            type: string
+            enum: [pod, user, service_account, browser_user, agent]
+        - name: provider
+          in: query
+          description: Filter by target LLM provider.
+          schema:
+            type: string
+        - name: decision
+          in: query
+          description: Filter by guardrail decision.
+          schema:
+            type: string
+            enum: [allow, block, anonymize, modify, alert, coach, throttle, log]
+        - name: blocked
+          in: query
+          description: Filter by whether the request was blocked.
+          schema:
+            type: boolean
+        - name: session_id
+          in: query
+          description: Filter by session ID.
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          description: Return events after this timestamp (RFC 3339).
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: Return events before this timestamp (RFC 3339).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated list of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/events/{event_id}:
+    get:
+      operationId: getEvent
+      summary: Get a specific event
+      description: Returns the full details of a single security event.
+      tags: [events]
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          description: Unique event identifier (ULID).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------- policies ----------
+  /api/v1/policies:
+    get:
+      operationId: listPolicies
+      summary: List all policies
+      description: Returns all configured AI security policies.
+      tags: [policies]
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/SortOrderParam"
+        - name: namespace
+          in: query
+          description: Filter by policy namespace.
+          schema:
+            type: string
+        - name: mode
+          in: query
+          description: Filter by enforcement mode.
+          schema:
+            type: string
+            enum: [off, discover, monitor, enforce]
+      responses:
+        "200":
+          description: Paginated list of policies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createPolicy
+      summary: Create a new policy
+      description: Creates a new AI security policy.
+      tags: [policies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AISecurityPolicy"
+            example:
+              apiVersion: kill-ai-leak.io/v1
+              kind: AISecurityPolicy
+              metadata:
+                name: production-default
+                namespace: production
+              spec:
+                scope:
+                  namespaces: [production]
+                providers:
+                  allow: [openai, anthropic]
+                  deny: []
+                input:
+                  block_pii: false
+                  anonymize_pii: true
+                  pii_types: [ssn, credit_card]
+                  block_secrets: true
+                  block_injection_score_above: 0.85
+                mode: enforce
+      responses:
+        "201":
+          description: Policy created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AISecurityPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: A policy with this name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/policies/{policy_id}:
+    put:
+      operationId: updatePolicy
+      summary: Update a policy
+      description: Replaces an existing AI security policy.
+      tags: [policies]
+      parameters:
+        - name: policy_id
+          in: path
+          required: true
+          description: Policy name used as identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AISecurityPolicy"
+      responses:
+        "200":
+          description: Policy updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AISecurityPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deletePolicy
+      summary: Delete a policy
+      description: Deletes an AI security policy by name.
+      tags: [policies]
+      parameters:
+        - name: policy_id
+          in: path
+          required: true
+          description: Policy name used as identifier.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Policy deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------- guardrails ----------
+  /api/v1/guardrails:
+    get:
+      operationId: listGuardrails
+      summary: List all guardrail rules
+      description: Returns all registered guardrail rules and their current configuration.
+      tags: [guardrails]
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: stage
+          in: query
+          description: Filter by pipeline stage.
+          schema:
+            type: string
+            enum: [pre_input, input, routing, output, post_output, behavioral]
+        - name: category
+          in: query
+          description: Filter by rule category.
+          schema:
+            type: string
+            enum:
+              - auth
+              - rate_limit
+              - allowlist
+              - pii
+              - secrets
+              - injection
+              - jailbreak
+              - toxicity
+              - code_safety
+              - data_residency
+              - brand_safety
+              - exfiltration
+              - shadow_ai
+              - agent_control
+              - compliance
+        - name: enabled
+          in: query
+          description: Filter by enabled/disabled status.
+          schema:
+            type: boolean
+        - name: mode
+          in: query
+          description: Filter by enforcement mode.
+          schema:
+            type: string
+            enum: [off, discover, monitor, enforce]
+      responses:
+        "200":
+          description: List of guardrail rules.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuardrailListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/guardrails/{rule_id}:
+    put:
+      operationId: updateGuardrail
+      summary: Update a guardrail rule configuration
+      description: |
+        Updates a guardrail rule's configuration. Can be used to
+        enable/disable rules or change their enforcement mode.
+      tags: [guardrails]
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          description: Unique rule identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardrailRuleUpdateRequest"
+            example:
+              enabled: true
+              mode: enforce
+              config:
+                threshold: 0.9
+      responses:
+        "200":
+          description: Rule updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuardrailRuleConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/guardrails/evaluate:
+    get:
+      operationId: dryRunGuardrailGet
+      summary: Dry-run guardrail evaluation (GET)
+      description: |
+        Test a prompt against all enabled guardrail rules without forwarding
+        to the upstream LLM. Useful for policy validation and testing.
+        The prompt is passed as a query parameter.
+      tags: [guardrails]
+      parameters:
+        - name: prompt
+          in: query
+          required: true
+          description: The prompt text to evaluate.
+          schema:
+            type: string
+        - name: provider
+          in: query
+          description: Simulate a specific provider context.
+          schema:
+            type: string
+        - name: model
+          in: query
+          description: Simulate a specific model context.
+          schema:
+            type: string
+        - name: mode
+          in: query
+          description: Override enforcement mode for the dry-run.
+          schema:
+            type: string
+            enum: [off, discover, monitor, enforce]
+      responses:
+        "200":
+          description: Dry-run evaluation result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: dryRunGuardrailPost
+      summary: Dry-run guardrail evaluation (POST)
+      description: |
+        Test a prompt against all enabled guardrail rules without forwarding
+        to the upstream LLM. POST variant supports full request bodies
+        including actor context and headers.
+      tags: [guardrails]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DryRunRequest"
+            example:
+              prompt: "My SSN is 123-45-6789, can you help me file taxes?"
+              provider: openai
+              model: gpt-4o
+              mode: enforce
+              actor:
+                type: user
+                id: "user-42"
+                name: Jane Doe
+      responses:
+        "200":
+          description: Dry-run evaluation result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------- stats ----------
+  /api/v1/stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      summary: Dashboard statistics
+      description: |
+        Returns aggregated statistics for the dashboard, including event
+        counts, block rates, top services, and guardrail trigger counts.
+      tags: [stats]
+      parameters:
+        - name: period
+          in: query
+          description: Time period for aggregation.
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: "24h"
+        - name: namespace
+          in: query
+          description: Filter by namespace.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/stats/costs:
+    get:
+      operationId: getCostStats
+      summary: Cost attribution data
+      description: |
+        Returns cost breakdown by provider, model, team, namespace, and
+        service. Useful for chargeback and FinOps reporting.
+      tags: [stats]
+      parameters:
+        - name: period
+          in: query
+          description: Time period for aggregation.
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: "7d"
+        - name: group_by
+          in: query
+          description: Dimension to group costs by.
+          schema:
+            type: string
+            enum: [provider, model, team, namespace, service]
+            default: provider
+        - name: namespace
+          in: query
+          description: Filter by namespace.
+          schema:
+            type: string
+        - name: team
+          in: query
+          description: Filter by team.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cost attribution data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------- health ----------
+  /api/v1/health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Returns liveness status of the API server.
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: Server is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/health/ready:
+    get:
+      operationId: readinessCheck
+      summary: Readiness check
+      description: |
+        Returns readiness status. Checks connectivity to backend
+        dependencies (NATS, database, policy store).
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: Server is ready to accept traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: Server is not ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+
+components:
+  # ---------- security schemes ----------
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT bearer token for authentication.
+    AppID:
+      type: apiKey
+      in: header
+      name: X-App-ID
+      description: Application identifier header. Ties requests to a registered application.
+
+  # ---------- reusable parameters ----------
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-indexed).
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      description: Number of items per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 50
+    SortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort by.
+      schema:
+        type: string
+        default: created_at
+    SortOrderParam:
+      name: sort_order
+      in: query
+      description: Sort direction.
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+  # ---------- reusable responses ----------
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid authentication credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Requested resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  # ---------- schemas ----------
+  schemas:
+    # -- Common --
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code.
+          example: "invalid_request"
+        message:
+          type: string
+          description: Human-readable error description.
+          example: "prompt field is required"
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          description: JSON path of the offending field.
+          example: "prompt"
+        reason:
+          type: string
+          description: Why this field failed validation.
+          example: "must not be empty"
+
+    Pagination:
+      type: object
+      required: [page, page_size, total_items, total_pages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_items:
+          type: integer
+          example: 234
+        total_pages:
+          type: integer
+          example: 5
+
+    # -- Actor / Target / Action --
+    Actor:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [pod, user, service_account, browser_user, agent]
+        id:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        node:
+          type: string
+        service_account:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        team:
+          type: string
+
+    Target:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [llm_provider, mcp_server, database, filesystem, api]
+        id:
+          type: string
+        provider:
+          type: string
+        endpoint:
+          type: string
+        model:
+          type: string
+        region:
+          type: string
+
+    Action:
+      type: object
+      required: [type, direction]
+      properties:
+        type:
+          type: string
+          enum: [api_call, tool_exec, file_access, process_spawn, db_query]
+        direction:
+          type: string
+          enum: [outbound, inbound]
+        protocol:
+          type: string
+        method:
+          type: string
+
+    # -- Content / Guardrail results --
+    ContentMeta:
+      type: object
+      required: [has_prompt, blocked, anonymized]
+      properties:
+        has_prompt:
+          type: boolean
+        prompt_hash:
+          type: string
+        prompt_text:
+          type: string
+        response_hash:
+          type: string
+        response_text:
+          type: string
+        tokens_input:
+          type: integer
+        tokens_output:
+          type: integer
+        model:
+          type: string
+        pii_detected:
+          type: array
+          items:
+            type: string
+        injection_score:
+          type: number
+          format: double
+        blocked:
+          type: boolean
+        anonymized:
+          type: boolean
+
+    GuardrailResult:
+      type: object
+      required: [rule_id, rule_name, stage, decision, confidence, latency_ms]
+      properties:
+        rule_id:
+          type: string
+        rule_name:
+          type: string
+        stage:
+          type: string
+          enum: [pre_input, input, routing, output, post_output, behavioral]
+        decision:
+          type: string
+          enum: [allow, block, anonymize, modify, alert, coach, throttle, log]
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+        latency_ms:
+          type: integer
+          format: int64
+
+    Finding:
+      type: object
+      required: [type, severity, confidence]
+      properties:
+        type:
+          type: string
+        value:
+          type: string
+        location:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        start_pos:
+          type: integer
+        end_pos:
+          type: integer
+
+    GuardrailEvaluation:
+      type: object
+      required: [rule_id, rule_name, stage, decision, confidence, latency_ms]
+      properties:
+        rule_id:
+          type: string
+        rule_name:
+          type: string
+        stage:
+          type: string
+          enum: [pre_input, input, routing, output, post_output, behavioral]
+        decision:
+          type: string
+          enum: [allow, block, anonymize, modify, alert, coach, throttle, log]
+        confidence:
+          type: number
+          format: double
+        reason:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        latency_ms:
+          type: integer
+          format: int64
+
+    PipelineResult:
+      type: object
+      required: [final_decision, evaluations, total_latency_ms, blocked]
+      properties:
+        final_decision:
+          type: string
+          enum: [allow, block, anonymize, modify, alert, coach, throttle, log]
+        evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardrailEvaluation"
+        modified_input:
+          type: string
+        modified_output:
+          type: string
+        total_latency_ms:
+          type: integer
+          format: int64
+        blocked:
+          type: boolean
+        blocked_by:
+          type: string
+
+    # -- Event --
+    Event:
+      type: object
+      required: [id, timestamp, source, severity, actor, target, action, content]
+      properties:
+        id:
+          type: string
+          description: ULID event identifier.
+          example: "01HZ3XJKB0001ABCDEF"
+        timestamp:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [kernel_observer, inline_gateway, browser, ide, mcp_gateway, cicd]
+        severity:
+          type: string
+          enum: [info, low, medium, high, critical]
+        actor:
+          $ref: "#/components/schemas/Actor"
+        target:
+          $ref: "#/components/schemas/Target"
+        action:
+          $ref: "#/components/schemas/Action"
+        content:
+          $ref: "#/components/schemas/ContentMeta"
+        guardrails:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardrailResult"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        session_id:
+          type: string
+        trace_id:
+          type: string
+        cost_usd:
+          type: number
+          format: double
+        latency_ms:
+          type: integer
+          format: int64
+
+    EventListResponse:
+      type: object
+      required: [events, pagination]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # -- Inventory --
+    ProviderUsage:
+      type: object
+      required: [provider, models, call_count_7d, tokens_used_7d, data_transferred_7d, est_cost_7d_usd, last_call_at]
+      properties:
+        provider:
+          type: string
+        models:
+          type: array
+          items:
+            type: string
+        call_count_7d:
+          type: integer
+          format: int64
+        tokens_used_7d:
+          type: integer
+          format: int64
+        data_transferred_7d:
+          type: integer
+          format: int64
+        est_cost_7d_usd:
+          type: number
+          format: double
+        last_call_at:
+          type: string
+          format: date-time
+
+    LibraryUsage:
+      type: object
+      required: [name, language]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        language:
+          type: string
+
+    DatabaseUsage:
+      type: object
+      required: [type, host]
+      properties:
+        type:
+          type: string
+          description: Database engine type.
+          example: postgresql
+        host:
+          type: string
+        database:
+          type: string
+
+    AIService:
+      type: object
+      required: [id, name, namespace, providers, exposure_type, risk_score, discovered_at, last_seen_at, discovered_by, gateway_enrolled]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        service_account:
+          type: string
+        team:
+          type: string
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderUsage"
+        libraries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LibraryUsage"
+        databases:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatabaseUsage"
+        exposure_type:
+          type: string
+          enum: [internal, external]
+        risk_score:
+          type: number
+          format: double
+        discovered_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        discovered_by:
+          type: string
+          enum: [kernel_observer, inline_gateway, browser, ide, mcp_gateway, cicd]
+        policy_applied:
+          type: string
+        gateway_enrolled:
+          type: boolean
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+
+    ABOMSummary:
+      type: object
+      required: [total_services, total_providers, total_models, total_databases, shadow_ai_count, total_cost_7d_usd, high_risk_services]
+      properties:
+        total_services:
+          type: integer
+        total_providers:
+          type: integer
+        total_models:
+          type: integer
+        total_databases:
+          type: integer
+        shadow_ai_count:
+          type: integer
+        total_cost_7d_usd:
+          type: number
+          format: double
+        high_risk_services:
+          type: integer
+
+    InventoryListResponse:
+      type: object
+      required: [services, summary, pagination]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/AIService"
+        summary:
+          $ref: "#/components/schemas/ABOMSummary"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # -- Policy --
+    PolicyScope:
+      type: object
+      properties:
+        namespaces:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        service_accounts:
+          type: array
+          items:
+            type: string
+        users:
+          type: array
+          items:
+            type: string
+        teams:
+          type: array
+          items:
+            type: string
+
+    ProviderPolicy:
+      type: object
+      required: [allow, deny]
+      properties:
+        allow:
+          type: array
+          items:
+            type: string
+        deny:
+          type: array
+          items:
+            type: string
+        namespace_overrides:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ProviderPolicy"
+
+    ModelPolicy:
+      type: object
+      required: [allow, deny]
+      properties:
+        allow:
+          type: array
+          items:
+            type: string
+        deny:
+          type: array
+          items:
+            type: string
+
+    RateLimit:
+      type: object
+      properties:
+        requests_per_minute:
+          type: integer
+        requests_per_hour:
+          type: integer
+        requests_per_day:
+          type: integer
+        tokens_per_day:
+          type: integer
+          format: int64
+        cost_per_day_usd:
+          type: number
+          format: double
+        cost_per_month_usd:
+          type: number
+          format: double
+
+    RateLimitPolicy:
+      type: object
+      properties:
+        per_user:
+          $ref: "#/components/schemas/RateLimit"
+        per_service:
+          $ref: "#/components/schemas/RateLimit"
+        per_namespace:
+          $ref: "#/components/schemas/RateLimit"
+
+    InputPolicy:
+      type: object
+      properties:
+        block_pii:
+          type: boolean
+        anonymize_pii:
+          type: boolean
+        pii_types:
+          type: array
+          items:
+            type: string
+        block_secrets:
+          type: boolean
+        block_injection_score_above:
+          type: number
+          format: double
+        max_tokens_per_request:
+          type: integer
+        blocked_topics:
+          type: array
+          items:
+            type: string
+        allowed_topics:
+          type: array
+          items:
+            type: string
+
+    OutputPolicy:
+      type: object
+      properties:
+        block_toxic_score_above:
+          type: number
+          format: double
+        scan_generated_code:
+          type: boolean
+        block_vulnerable_code:
+          type: boolean
+        check_pii_leakage:
+          type: boolean
+        check_prompt_leakage:
+          type: boolean
+
+    FilesystemPolicy:
+      type: object
+      required: [allow_read, deny_read, allow_write, deny_write, deny_delete]
+      properties:
+        allow_read:
+          type: array
+          items:
+            type: string
+        deny_read:
+          type: array
+          items:
+            type: string
+        allow_write:
+          type: array
+          items:
+            type: string
+        deny_write:
+          type: array
+          items:
+            type: string
+        deny_delete:
+          type: array
+          items:
+            type: string
+
+    CommandPolicy:
+      type: object
+      required: [allow, deny, require_approval]
+      properties:
+        allow:
+          type: array
+          items:
+            type: string
+        deny:
+          type: array
+          items:
+            type: string
+        require_approval:
+          type: array
+          items:
+            type: string
+
+    NetworkPolicy:
+      type: object
+      required: [allow_outbound, deny_outbound]
+      properties:
+        allow_outbound:
+          type: array
+          items:
+            type: string
+        deny_outbound:
+          type: array
+          items:
+            type: string
+
+    DatabasePolicy:
+      type: object
+      required: [allow, deny, require_approval]
+      properties:
+        allow:
+          type: array
+          items:
+            type: string
+        deny:
+          type: array
+          items:
+            type: string
+        require_approval:
+          type: array
+          items:
+            type: string
+
+    AgentPolicy:
+      type: object
+      properties:
+        filesystem:
+          $ref: "#/components/schemas/FilesystemPolicy"
+        commands:
+          $ref: "#/components/schemas/CommandPolicy"
+        network:
+          $ref: "#/components/schemas/NetworkPolicy"
+        database:
+          $ref: "#/components/schemas/DatabasePolicy"
+
+    RouteTarget:
+      type: object
+      required: [provider]
+      properties:
+        provider:
+          type: string
+        region:
+          type: string
+        endpoint:
+          type: string
+
+    DataResidencyRule:
+      type: object
+      required: [name, condition, route_to]
+      properties:
+        name:
+          type: string
+        condition:
+          type: string
+        route_to:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteTarget"
+        deny_routing_to:
+          type: array
+          items:
+            type: string
+
+    DataResidencyPolicy:
+      type: object
+      required: [rules]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataResidencyRule"
+
+    AlertConfig:
+      type: object
+      properties:
+        slack:
+          type: string
+        pagerduty:
+          type: string
+        email:
+          type: string
+        webhook:
+          type: string
+
+    PolicySpec:
+      type: object
+      required: [scope, mode]
+      properties:
+        scope:
+          $ref: "#/components/schemas/PolicyScope"
+        providers:
+          $ref: "#/components/schemas/ProviderPolicy"
+        models:
+          $ref: "#/components/schemas/ModelPolicy"
+        rate_limits:
+          $ref: "#/components/schemas/RateLimitPolicy"
+        input:
+          $ref: "#/components/schemas/InputPolicy"
+        output:
+          $ref: "#/components/schemas/OutputPolicy"
+        agent:
+          $ref: "#/components/schemas/AgentPolicy"
+        data_residency:
+          $ref: "#/components/schemas/DataResidencyPolicy"
+        mode:
+          type: string
+          enum: [off, discover, monitor, enforce]
+        alerts:
+          $ref: "#/components/schemas/AlertConfig"
+
+    PolicyMetadata:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+
+    AISecurityPolicy:
+      type: object
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+          example: "kill-ai-leak.io/v1"
+        kind:
+          type: string
+          example: AISecurityPolicy
+        metadata:
+          $ref: "#/components/schemas/PolicyMetadata"
+        spec:
+          $ref: "#/components/schemas/PolicySpec"
+
+    PolicyListResponse:
+      type: object
+      required: [policies, pagination]
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/AISecurityPolicy"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # -- Guardrail config --
+    GuardrailRuleConfig:
+      type: object
+      required: [id, name, description, stage, category, mode, priority, enabled]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        stage:
+          type: string
+          enum: [pre_input, input, routing, output, post_output, behavioral]
+        category:
+          type: string
+          enum:
+            - auth
+            - rate_limit
+            - allowlist
+            - pii
+            - secrets
+            - injection
+            - jailbreak
+            - toxicity
+            - code_safety
+            - data_residency
+            - brand_safety
+            - exfiltration
+            - shadow_ai
+            - agent_control
+            - compliance
+        mode:
+          type: string
+          enum: [off, discover, monitor, enforce]
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        config:
+          type: object
+          additionalProperties: true
+
+    GuardrailRuleUpdateRequest:
+      type: object
+      description: Fields to update on a guardrail rule. All fields are optional.
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [off, discover, monitor, enforce]
+        priority:
+          type: integer
+        config:
+          type: object
+          additionalProperties: true
+
+    GuardrailListResponse:
+      type: object
+      required: [rules, pagination]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardrailRuleConfig"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # -- Protect --
+    ProtectRequest:
+      type: object
+      required: [provider, model, prompt]
+      properties:
+        provider:
+          type: string
+          description: Target LLM provider (e.g. openai, anthropic).
+        model:
+          type: string
+          description: Target model identifier.
+        prompt:
+          type: string
+          description: The prompt text to evaluate and forward.
+        session_id:
+          type: string
+          description: Optional session ID for multi-turn tracking.
+        actor:
+          $ref: "#/components/schemas/Actor"
+        headers:
+          type: object
+          description: Additional headers to forward to the upstream provider.
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+          description: Arbitrary key-value metadata.
+          additionalProperties:
+            type: string
+
+    ProtectResponse:
+      type: object
+      required: [response, pipeline_result, event_id, latency_ms]
+      properties:
+        response:
+          type: string
+          description: The LLM response text (potentially modified by output guardrails).
+        pipeline_result:
+          $ref: "#/components/schemas/PipelineResult"
+        event_id:
+          type: string
+          description: ID of the generated audit event.
+        session_id:
+          type: string
+        tokens_input:
+          type: integer
+        tokens_output:
+          type: integer
+        model:
+          type: string
+        provider:
+          type: string
+        cost_usd:
+          type: number
+          format: double
+        latency_ms:
+          type: integer
+          format: int64
+
+    ProtectBlockedResponse:
+      type: object
+      required: [blocked, blocked_by, pipeline_result, event_id]
+      properties:
+        blocked:
+          type: boolean
+          example: true
+        blocked_by:
+          type: string
+          description: Rule ID that triggered the block.
+        reason:
+          type: string
+          description: Human-readable reason for the block.
+        pipeline_result:
+          $ref: "#/components/schemas/PipelineResult"
+        event_id:
+          type: string
+
+    DryRunRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        mode:
+          type: string
+          enum: [off, discover, monitor, enforce]
+        actor:
+          $ref: "#/components/schemas/Actor"
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    # -- Stats --
+    DashboardStats:
+      type: object
+      required: [period, total_events, events_by_severity, events_by_source, block_rate, guardrail_triggers, top_services, top_providers]
+      properties:
+        period:
+          type: string
+          example: "24h"
+        total_events:
+          type: integer
+          format: int64
+        events_by_severity:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            info: 1200
+            low: 340
+            medium: 85
+            high: 12
+            critical: 2
+        events_by_source:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            kernel_observer: 800
+            inline_gateway: 600
+            browser: 239
+        block_rate:
+          type: number
+          format: double
+          description: Percentage of requests blocked (0-100).
+          example: 3.2
+        guardrail_triggers:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardrailTriggerCount"
+        top_services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceUsageSummary"
+        top_providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderUsageSummary"
+        total_tokens:
+          type: integer
+          format: int64
+        total_cost_usd:
+          type: number
+          format: double
+        active_sessions:
+          type: integer
+
+    GuardrailTriggerCount:
+      type: object
+      required: [rule_id, rule_name, category, trigger_count, block_count]
+      properties:
+        rule_id:
+          type: string
+        rule_name:
+          type: string
+        category:
+          type: string
+        trigger_count:
+          type: integer
+          format: int64
+        block_count:
+          type: integer
+          format: int64
+
+    ServiceUsageSummary:
+      type: object
+      required: [service_id, service_name, namespace, request_count, cost_usd]
+      properties:
+        service_id:
+          type: string
+        service_name:
+          type: string
+        namespace:
+          type: string
+        request_count:
+          type: integer
+          format: int64
+        cost_usd:
+          type: number
+          format: double
+
+    ProviderUsageSummary:
+      type: object
+      required: [provider, request_count, token_count, cost_usd]
+      properties:
+        provider:
+          type: string
+        request_count:
+          type: integer
+          format: int64
+        token_count:
+          type: integer
+          format: int64
+        cost_usd:
+          type: number
+          format: double
+
+    CostStats:
+      type: object
+      required: [period, group_by, total_cost_usd, items]
+      properties:
+        period:
+          type: string
+          example: "7d"
+        group_by:
+          type: string
+          example: "provider"
+        total_cost_usd:
+          type: number
+          format: double
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostItem"
+
+    CostItem:
+      type: object
+      required: [key, cost_usd, request_count, token_count]
+      properties:
+        key:
+          type: string
+          description: The grouping key value (e.g. provider name, team name).
+        cost_usd:
+          type: number
+          format: double
+        request_count:
+          type: integer
+          format: int64
+        token_count:
+          type: integer
+          format: int64
+        breakdown:
+          type: array
+          description: Optional sub-breakdown (e.g. by model within a provider).
+          items:
+            $ref: "#/components/schemas/CostItem"
+
+    # -- Health --
+    HealthResponse:
+      type: object
+      required: [status, version, uptime_seconds]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        version:
+          type: string
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+          format: int64
+
+    ReadinessResponse:
+      type: object
+      required: [ready, checks]
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ReadinessCheck"
+
+    ReadinessCheck:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, failed]
+        message:
+          type: string
+        latency_ms:
+          type: integer
+          format: int64

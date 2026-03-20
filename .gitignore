@@ -1,0 +1,45 @@
+# Binaries
+gateway
+api-server
+observer
+processor
+cli
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build
+dist/
+build/
+
+# Test
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.pem
+*.key
+
+# Vendor (use modules)
+vendor/
+
+# Generated
+*.pb.go
