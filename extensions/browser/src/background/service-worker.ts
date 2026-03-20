@@ -169,7 +169,7 @@ function handleBeforeRequest(
     settings.userId,
     settings.team,
     details.url,
-  ) ?? { decision: "allow" as PolicyDecision, reason: "no policy manager", policyName: "", mode: "discover" as const };
+  ) ?? { decision: "allow" as PolicyDecision, reason: "built-in local policy", policyName: "local-default", mode: "enforce" as const };
 
   // Record usage regardless of decision.
   recordUsage(details.url, details.method);
@@ -426,7 +426,7 @@ chrome.runtime.onMessage.addListener(
           provider,
           decision: evaluation?.decision ?? "allow",
           reason: evaluation?.reason ?? "",
-          mode: evaluation?.mode ?? "discover",
+          mode: evaluation?.mode ?? "enforce",
         });
         return false;
       }
