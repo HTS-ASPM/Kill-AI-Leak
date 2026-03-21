@@ -2,13 +2,17 @@ package proxy
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/health"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
+	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
 // Handler bundles HTTP handlers for the inline gateway and wires them into a
@@ -41,6 +45,10 @@ func NewHandler(proxy *LLMProxy, hc *health.Checker, log *logger.Logger, cfg *co
 func (h *Handler) Register(mux *http.ServeMux) {
 	// Main proxy endpoint -- requests like POST /api/protect/openai/v1/chat/completions.
 	mux.Handle("/api/protect/", h.protectHandler())
+
+	// Dry-run evaluation endpoint -- runs the full guardrail pipeline
+	// without forwarding to upstream. Returns the PipelineResult as JSON.
+	mux.Handle("/api/evaluate", h.evaluateHandler())
 
 	// Health probes.
 	mux.HandleFunc("/healthz", h.health.LivenessHandler())
@@ -75,6 +83,129 @@ func (h *Handler) protectHandler() http.Handler {
 			"duration_ms": elapsed,
 			"provider":    extractProvider(r),
 		})
+	})
+}
+
+// evaluateHandler runs the full guardrail pipeline (input + output stages)
+// on the request body without forwarding to the upstream provider. This is
+// useful for dry-run testing of prompts.
+func (h *Handler) evaluateHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			respondJSON(w, http.StatusMethodNotAllowed, errorResponse{
+				Error:   "method_not_allowed",
+				Message: "Only POST is accepted",
+			})
+			return
+		}
+
+		ctx := r.Context()
+
+		// Extract actor.
+		actor := middleware.ActorFromContext(ctx)
+		if actor == nil {
+			actor = &models.Actor{Type: models.ActorServiceAccount, ID: "unknown"}
+		}
+
+		provider := extractProvider(r)
+		if provider == "" {
+			// For evaluate, provider may be passed as a query param or header.
+			provider = r.URL.Query().Get("provider")
+		}
+		if provider == "" {
+			provider = "openai" // default for dry-run
+		}
+
+		// Read body.
+		bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, int64(h.cfg.Server.MaxRequestBodyMB)*1024*1024))
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, errorResponse{
+				Error:   "read_body_failed",
+				Message: "Could not read request body",
+			})
+			return
+		}
+		defer r.Body.Close()
+
+		promptText := extractPrompt(bodyBytes, provider)
+
+		// Build EvalContext.
+		evalCtx := guardrails.NewEvalContext(ctx).
+			WithPrompt(promptText).
+			WithActor(actor).
+			WithProvider(provider)
+
+		// Copy headers.
+		headers := make(map[string]string, 4)
+		for _, hdr := range []string{"Content-Type", "X-APP-ID", "X-Request-ID", "X-Session-ID"} {
+			if v := r.Header.Get(hdr); v != "" {
+				headers[hdr] = v
+			}
+		}
+		evalCtx.WithHeaders(headers)
+
+		if sid := r.Header.Get("X-Session-ID"); sid != "" {
+			evalCtx.WithSessionID(sid)
+		}
+
+		if h.proxy.engine == nil || !h.cfg.Guardrails.Enabled {
+			respondJSON(w, http.StatusOK, map[string]any{
+				"message": "guardrails are disabled; nothing to evaluate",
+			})
+			return
+		}
+
+		// Run input guardrails.
+		inputResult, err := h.proxy.engine.EvaluateInput(ctx, evalCtx)
+		if err != nil {
+			h.log.Error(ctx, "evaluate: input guardrail failed", map[string]any{"error": err.Error()})
+			respondJSON(w, http.StatusInternalServerError, errorResponse{
+				Error:   "guardrail_error",
+				Message: "Failed to evaluate input guardrails",
+			})
+			return
+		}
+
+		// Run output guardrails (with empty response, since we do not call upstream).
+		evalCtx.WithResponse("")
+		outputResult, err := h.proxy.engine.EvaluateOutput(ctx, evalCtx)
+		if err != nil {
+			h.log.Error(ctx, "evaluate: output guardrail failed", map[string]any{"error": err.Error()})
+			respondJSON(w, http.StatusInternalServerError, errorResponse{
+				Error:   "guardrail_error",
+				Message: "Failed to evaluate output guardrails",
+			})
+			return
+		}
+
+		// Merge evaluations from both stages.
+		allEvals := make([]models.GuardrailEvaluation, 0, len(inputResult.Evaluations)+len(outputResult.Evaluations))
+		allEvals = append(allEvals, inputResult.Evaluations...)
+		allEvals = append(allEvals, outputResult.Evaluations...)
+
+		totalLatency := inputResult.TotalLatencyMs + outputResult.TotalLatencyMs
+
+		// Build a combined result.
+		combined := &models.PipelineResult{
+			FinalDecision:  inputResult.FinalDecision,
+			Evaluations:    allEvals,
+			TotalLatencyMs: totalLatency,
+			Blocked:        inputResult.Blocked || outputResult.Blocked,
+			BlockedBy:      inputResult.BlockedBy,
+		}
+		if !inputResult.Blocked && outputResult.Blocked {
+			combined.FinalDecision = outputResult.FinalDecision
+			combined.BlockedBy = outputResult.BlockedBy
+		}
+
+		h.log.Info(ctx, "evaluate (dry-run) completed", map[string]any{
+			"decision":   string(combined.FinalDecision),
+			"blocked":    combined.Blocked,
+			"latency_ms": totalLatency,
+			"provider":   provider,
+		})
+
+		respondJSON(w, http.StatusOK, combined)
 	})
 }
 

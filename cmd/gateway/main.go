@@ -17,11 +17,14 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/injection"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/jailbreak"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/pii"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/ratelimit"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/secrets"
+	detstateful "github.com/kill-ai-leak/kill-ai-leak/pkg/detection/stateful"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/proxy"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/stateful"
 )
 
 const version = "0.1.0"
@@ -73,17 +76,24 @@ func run() error {
 	// --- Initialize guardrail engine with detection rules ---
 	var engine proxy.GuardrailEngine
 
+	// Create a session tracker for multi-turn analysis (used even if
+	// guardrails are disabled so it can be stopped cleanly on shutdown).
+	sessionTracker := stateful.NewSessionTracker(stateful.DefaultTrackerConfig())
+	defer sessionTracker.Stop()
+
 	if cfg.Guardrails.Enabled {
 		registry := guardrails.NewRegistry()
 
 		// Register all detection rules with default config.
 		rules := []guardrails.Rule{
+			ratelimit.New(),
 			pii.New(),
 			secrets.New(),
 			injection.New(),
 			jailbreak.New(),
 			toxicity.New(),
 			code.New(),
+			detstateful.New(sessionTracker),
 		}
 		for _, rule := range rules {
 			ruleCfg := &models.GuardrailRuleConfig{

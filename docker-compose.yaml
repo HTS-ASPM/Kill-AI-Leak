@@ -1,0 +1,26 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.gateway
+    ports: ["8080:8080"]
+    environment:
+      KILLAI_LOG_LEVEL: info
+      KILLAI_AUTH_ENABLED: "false"
+    depends_on: [redis, nats]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js"]
+    ports: ["4222:4222"]
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports: ["3000:3000"]
+    depends_on: [gateway]

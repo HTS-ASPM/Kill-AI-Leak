@@ -4,6 +4,7 @@
 package injection
 
 import (
+	"encoding/base64"
 	"fmt"
 	"math"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
@@ -182,45 +184,69 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 	// Normalize text for analysis.
 	normalized := normalizeText(text)
 
+	// Build the set of text variants to scan: original normalized text,
+	// any base64-decoded segments found in it, and a leetspeak-normalized
+	// version.
+	variants := []string{normalized}
+
+	// Decode base64 segments and add decoded content as an extra variant.
+	decoded := decodeBase64Segments(normalized)
+	if decoded != "" {
+		variants = append(variants, decoded)
+	}
+
+	// Leetspeak normalization variant.
+	leet := normalizeLeetspeak(normalized)
+	if leet != normalized {
+		variants = append(variants, leet)
+	}
+
 	// --- Layer 1: Signature matching ---
+	// Run signatures against ALL variants; keep the highest score and
+	// merge findings.
 	var sigFindings []models.Finding
 	sigScore := 0.0
-	for _, sig := range signatures {
-		matches := sig.re.FindAllStringIndex(normalized, -1)
-		for _, loc := range matches {
-			sigFindings = append(sigFindings, models.Finding{
-				Type:       sig.label,
-				Value:      truncate(normalized[loc[0]:loc[1]], 100),
-				Location:   fmt.Sprintf("position %d-%d", loc[0], loc[1]),
-				Severity:   severityFromWeight(sig.weight),
-				Confidence: sig.weight,
-				StartPos:   loc[0],
-				EndPos:     loc[1],
-			})
-			if sig.weight > sigScore {
-				sigScore = sig.weight
+	for _, variant := range variants {
+		for _, sig := range signatures {
+			matches := sig.re.FindAllStringIndex(variant, -1)
+			for _, loc := range matches {
+				sigFindings = append(sigFindings, models.Finding{
+					Type:       sig.label,
+					Value:      truncate(variant[loc[0]:loc[1]], 100),
+					Location:   fmt.Sprintf("position %d-%d", loc[0], loc[1]),
+					Severity:   severityFromWeight(sig.weight),
+					Confidence: sig.weight,
+					StartPos:   loc[0],
+					EndPos:     loc[1],
+				})
+				if sig.weight > sigScore {
+					sigScore = sig.weight
+				}
 			}
 		}
 	}
 
 	// --- Layer 2: Heuristic scoring ---
+	// Heuristics run against all variants; accumulate scores.
 	heuristicScore := 0.0
 	var heurFindings []models.Finding
-	for _, h := range heuristics {
-		matches := h.re.FindAllStringIndex(normalized, -1)
-		if len(matches) > 0 {
-			for _, loc := range matches {
-				heurFindings = append(heurFindings, models.Finding{
-					Type:       "heuristic:" + h.label,
-					Value:      truncate(normalized[loc[0]:loc[1]], 100),
-					Location:   fmt.Sprintf("position %d-%d", loc[0], loc[1]),
-					Severity:   "medium",
-					Confidence: h.weight,
-					StartPos:   loc[0],
-					EndPos:     loc[1],
-				})
+	for _, variant := range variants {
+		for _, h := range heuristics {
+			matches := h.re.FindAllStringIndex(variant, -1)
+			if len(matches) > 0 {
+				for _, loc := range matches {
+					heurFindings = append(heurFindings, models.Finding{
+						Type:       "heuristic:" + h.label,
+						Value:      truncate(variant[loc[0]:loc[1]], 100),
+						Location:   fmt.Sprintf("position %d-%d", loc[0], loc[1]),
+						Severity:   "medium",
+						Confidence: h.weight,
+						StartPos:   loc[0],
+						EndPos:     loc[1],
+					})
+				}
+				heuristicScore += h.weight * float64(len(matches))
 			}
-			heuristicScore += h.weight * float64(len(matches))
 		}
 	}
 	// Cap the heuristic score at 1.0
@@ -309,20 +335,30 @@ func (d *Detector) Configure(cfg map[string]any) error {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// normalizeText applies light normalization to reduce evasion via spacing
-// and unicode tricks. It collapses runs of whitespace, strips zero-width
-// characters, and maps common lookalike substitutions.
+// normalizeText applies normalization to reduce evasion via spacing,
+// unicode tricks, and homoglyphs. It strips zero-width characters, applies
+// NFKC-like unicode normalization (fullwidth -> ASCII, Cyrillic lookalikes
+// -> Latin), and collapses whitespace.
 func normalizeText(s string) string {
-	// Strip zero-width characters.
+	// Strip zero-width characters and apply NFKC-like homoglyph mapping.
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
 		switch r {
 		case '\u200b', '\u200c', '\u200d', '\ufeff', '\u00ad':
 			// zero-width / soft-hyphen - skip
-		default:
-			b.WriteRune(r)
+			continue
 		}
+		// NFKC normalization: map fullwidth ASCII (U+FF01..U+FF5E) to
+		// their normal ASCII equivalents (U+0021..U+007E).
+		if r >= 0xFF01 && r <= 0xFF5E {
+			r = r - 0xFF01 + 0x0021
+		}
+		// Map Cyrillic lookalikes to their Latin equivalents.
+		if mapped, ok := cyrillicToLatin[r]; ok {
+			r = mapped
+		}
+		b.WriteRune(r)
 	}
 	normalized := b.String()
 
@@ -332,6 +368,115 @@ func normalizeText(s string) string {
 	normalized = strings.TrimSpace(normalized)
 
 	return normalized
+}
+
+// cyrillicToLatin maps Cyrillic characters that visually resemble Latin
+// letters to their Latin equivalents (NFKC-style homoglyph normalization).
+var cyrillicToLatin = map[rune]rune{
+	'\u0410': 'A', // А
+	'\u0412': 'B', // В
+	'\u0421': 'C', // С
+	'\u0415': 'E', // Е
+	'\u041D': 'H', // Н
+	'\u041A': 'K', // К
+	'\u041C': 'M', // М
+	'\u041E': 'O', // О
+	'\u0420': 'P', // Р
+	'\u0422': 'T', // Т
+	'\u0425': 'X', // Х
+	'\u0430': 'a', // а
+	'\u0435': 'e', // е
+	'\u043E': 'o', // о
+	'\u0440': 'p', // р
+	'\u0441': 'c', // с
+	'\u0443': 'y', // у
+	'\u0445': 'x', // х
+	'\u0456': 'i', // і
+	'\u0455': 's', // ѕ
+	'\u04BB': 'h', // һ
+}
+
+// ---------------------------------------------------------------------------
+// Base64 decoding for bypass detection
+// ---------------------------------------------------------------------------
+
+// base64SegmentRe matches plausible base64-encoded segments (min 20 chars).
+var base64SegmentRe = regexp.MustCompile(`[A-Za-z0-9+/]{20,}={0,2}`)
+
+// decodeBase64Segments finds base64-encoded segments in the text, decodes
+// them, and returns the concatenated decoded content. Only valid UTF-8
+// decoded segments with a high ratio of printable characters are included.
+func decodeBase64Segments(text string) string {
+	matches := base64SegmentRe.FindAllString(text, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	var decoded strings.Builder
+	for _, candidate := range matches {
+		raw, err := base64.StdEncoding.DecodeString(candidate)
+		if err != nil {
+			// Try with padding adjustment.
+			padded := candidate
+			if rem := len(padded) % 4; rem != 0 {
+				padded += strings.Repeat("=", 4-rem)
+			}
+			raw, err = base64.StdEncoding.DecodeString(padded)
+			if err != nil {
+				continue
+			}
+		}
+		if !utf8.Valid(raw) {
+			continue
+		}
+		s := string(raw)
+		// Only include if the decoded text looks like natural language.
+		printable := 0
+		total := 0
+		for _, r := range s {
+			total++
+			if unicode.IsPrint(r) || unicode.IsSpace(r) {
+				printable++
+			}
+		}
+		if total > 0 && float64(printable)/float64(total) >= 0.8 {
+			if decoded.Len() > 0 {
+				decoded.WriteString(" ")
+			}
+			decoded.WriteString(s)
+		}
+	}
+	return decoded.String()
+}
+
+// ---------------------------------------------------------------------------
+// Leetspeak normalization
+// ---------------------------------------------------------------------------
+
+// leetspeakMap maps common leetspeak substitutions back to letters.
+var leetspeakMap = map[rune]rune{
+	'1': 'i',
+	'0': 'o',
+	'3': 'e',
+	'4': 'a',
+	'@': 'a',
+	'$': 's',
+	'7': 't',
+}
+
+// normalizeLeetspeak replaces common leetspeak characters with their letter
+// equivalents and returns the result.
+func normalizeLeetspeak(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if mapped, ok := leetspeakMap[r]; ok {
+			b.WriteRune(mapped)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // severityFromWeight maps a pattern weight to a severity string.

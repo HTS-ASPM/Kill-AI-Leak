@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
@@ -197,6 +198,30 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 		matches := p.re.FindAllStringIndex(text, -1)
 		for _, loc := range matches {
 			matchText := text[loc[0]:loc[1]]
+
+			// --- False positive filters ---
+
+			// Credit card: validate with Luhn algorithm.
+			if p.label == "credit_card" {
+				digits := extractDigits(matchText)
+				if !luhnCheck(digits) {
+					continue
+				}
+			}
+
+			// SSN: reject if surrounding text looks like a date.
+			if p.label == "ssn" && looksLikeDate(text, loc[0], loc[1]) {
+				continue
+			}
+
+			// IP address: reject if surrounded by version number pattern.
+			if p.label == "ip_address" && looksLikeVersionNumber(text, loc[0], loc[1]) {
+				continue
+			}
+
+			// --- Context-aware confidence scoring ---
+			confidence := contextConfidence(text, loc[0], loc[1], p.label)
+
 			masked := maskValue(matchText)
 
 			findings = append(findings, models.Finding{
@@ -204,7 +229,7 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 				Value:      masked,
 				Location:   fmt.Sprintf("position %d-%d", loc[0], loc[1]),
 				Severity:   string(p.severity),
-				Confidence: 0.95,
+				Confidence: confidence,
 				StartPos:   loc[0],
 				EndPos:     loc[1],
 			})
@@ -326,4 +351,129 @@ func maskValue(s string) string {
 		masked[i] = '*'
 	}
 	return string(masked)
+}
+
+// ---------------------------------------------------------------------------
+// Luhn check for credit card validation
+// ---------------------------------------------------------------------------
+
+// extractDigits returns only the digit characters from s.
+func extractDigits(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// luhnCheck validates a string of digits using the Luhn algorithm.
+// Returns false for empty strings or strings that fail the check.
+func luhnCheck(digits string) bool {
+	n := len(digits)
+	if n < 2 {
+		return false
+	}
+	sum := 0
+	alt := false
+	for i := n - 1; i >= 0; i-- {
+		d := int(digits[i] - '0')
+		if d < 0 || d > 9 {
+			return false
+		}
+		if alt {
+			d *= 2
+			if d > 9 {
+				d -= 9
+			}
+		}
+		sum += d
+		alt = !alt
+	}
+	return sum%10 == 0
+}
+
+// ---------------------------------------------------------------------------
+// Context-aware confidence scoring
+// ---------------------------------------------------------------------------
+
+// contextClues maps PII labels to phrases that, when found near a match,
+// strongly indicate the match is genuine PII.
+var contextClues = map[string][]string{
+	"ssn":         {"ssn:", "social security", "social sec"},
+	"credit_card": {"card number:", "card no:", "credit card", "cc:"},
+	"phone":       {"phone:", "tel:", "telephone:", "call:", "mobile:"},
+	"email":       {"email:", "e-mail:", "mail:"},
+}
+
+// contextConfidence examines the 50 characters before and after a match for
+// context clues. If a clue is found, confidence is boosted to 0.99;
+// otherwise it is reduced to 0.70.
+func contextConfidence(text string, start, end int, label string) float64 {
+	clues, ok := contextClues[label]
+	if !ok {
+		// No context clues defined for this type; use default confidence.
+		return 0.95
+	}
+
+	// Extract the surrounding window.
+	winStart := start - 50
+	if winStart < 0 {
+		winStart = 0
+	}
+	winEnd := end + 50
+	if winEnd > len(text) {
+		winEnd = len(text)
+	}
+	surrounding := strings.ToLower(text[winStart:start])
+	if end < winEnd {
+		surrounding += " " + strings.ToLower(text[end:winEnd])
+	}
+
+	for _, clue := range clues {
+		if strings.Contains(surrounding, clue) {
+			return 0.99
+		}
+	}
+	return 0.70
+}
+
+// ---------------------------------------------------------------------------
+// False positive filters
+// ---------------------------------------------------------------------------
+
+// datePatternRe matches common date-like patterns around an SSN match.
+var datePatternRe = regexp.MustCompile(`(?i)(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}|date)`)
+
+// looksLikeDate checks if the text surrounding an SSN-like match contains
+// date indicators, suggesting the match is a date rather than an SSN.
+func looksLikeDate(text string, start, end int) bool {
+	winStart := start - 30
+	if winStart < 0 {
+		winStart = 0
+	}
+	winEnd := end + 30
+	if winEnd > len(text) {
+		winEnd = len(text)
+	}
+	window := text[winStart:winEnd]
+	return datePatternRe.MatchString(window)
+}
+
+// versionPatternRe matches version number prefixes like "v1.2.3.4" or
+// "version 1.2.3.4".
+var versionPatternRe = regexp.MustCompile(`(?i)(?:v|version\s*)\d`)
+
+// looksLikeVersionNumber checks if an IP-address-like match is preceded by a
+// version prefix (e.g., "v1.2.3.4"), indicating it is a version number
+// rather than an actual IP address.
+func looksLikeVersionNumber(text string, start, end int) bool {
+	// Check up to 10 characters before the match.
+	winStart := start - 10
+	if winStart < 0 {
+		winStart = 0
+	}
+	prefix := text[winStart:end]
+	return versionPatternRe.MatchString(prefix)
 }

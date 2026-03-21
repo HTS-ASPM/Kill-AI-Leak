@@ -15,6 +15,7 @@ import (
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/anonymizer"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
@@ -46,6 +47,7 @@ type LLMProxy struct {
 	log        *logger.Logger
 	targets    map[string]*url.URL
 	transports map[string]*http.Transport
+	anonymizer *anonymizer.Anonymizer
 
 	mu sync.RWMutex
 }
@@ -58,6 +60,7 @@ func NewLLMProxy(cfg *config.AppConfig, engine GuardrailEngine, log *logger.Logg
 		log:        log,
 		targets:    make(map[string]*url.URL),
 		transports: make(map[string]*http.Transport),
+		anonymizer: anonymizer.New(),
 	}
 
 	// Build the target map from configuration + well-known defaults.
@@ -190,6 +193,24 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if inputResult.FinalDecision == models.DecisionAnonymize && inputResult.ModifiedInput != "" {
 			bodyBytes = replacePromptInBody(bodyBytes, provider, inputResult.ModifiedInput)
 		}
+
+		// --- 5b. PII anonymization via the anonymizer ---
+		// If the decision is Anonymize and there are PII findings, run them
+		// through the session-scoped anonymizer for deterministic replacement.
+		if inputResult.FinalDecision == models.DecisionAnonymize {
+			piiFindings := extractPIIFindings(inputResult)
+			if len(piiFindings) > 0 {
+				sessionID := evalCtx.SessionID
+				if sessionID == "" {
+					sessionID = actor.ID // fall back to actor ID
+				}
+				anonFindings := convertToAnonymizerFindings(piiFindings)
+				anonText, _ := p.anonymizer.Anonymize(sessionID, promptText, anonFindings)
+				bodyBytes = replacePromptInBody(bodyBytes, provider, anonText)
+				// Mark that we anonymized so we can deanonymize the response.
+				evalCtx.SetMetadata("_anonymizer_session", sessionID)
+			}
+		}
 	}
 
 	// --- 6. Forward to upstream ---
@@ -260,6 +281,17 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// If the output was modified (e.g., de-anonymized), use the modified version.
 		if outputResult.ModifiedOutput != "" {
 			respBody = replaceResponseInBody(respBody, provider, outputResult.ModifiedOutput)
+		}
+	}
+
+	// --- 8b. Deanonymize response if PII anonymization was applied ---
+	if anonSessRaw, ok := evalCtx.GetMetadata("_anonymizer_session"); ok {
+		if anonSessID, ok := anonSessRaw.(string); ok && anonSessID != "" {
+			responseText := extractResponseText(respBody, provider)
+			deanonText := p.anonymizer.Deanonymize(anonSessID, responseText)
+			if deanonText != responseText {
+				respBody = replaceResponseInBody(respBody, provider, deanonText)
+			}
 		}
 	}
 
@@ -649,4 +681,46 @@ func (p *LLMProxy) ReverseProxy(provider string) (*httputil.ReverseProxy, error)
 		Transport: p.transports[provider],
 	}
 	return rp, nil
+}
+
+// ---- PII Anonymization Helpers ----
+
+// extractPIIFindings collects PII-related findings from the pipeline result.
+func extractPIIFindings(result *models.PipelineResult) []models.Finding {
+	var out []models.Finding
+	for _, eval := range result.Evaluations {
+		for _, f := range eval.Findings {
+			if isPIIType(f.Type) {
+				out = append(out, f)
+			}
+		}
+	}
+	return out
+}
+
+// isPIIType returns true if the finding type corresponds to a known PII type.
+func isPIIType(t string) bool {
+	switch models.PIIType(t) {
+	case models.PIIEmail, models.PIIPhone, models.PIISSN, models.PIICreditCard,
+		models.PIIName, models.PIIAddress, models.PIIDOB, models.PIIPassport,
+		models.PIIMedicalID, models.PIIBankAccount, models.PIIDriverLicense,
+		models.PIIIPAddress, models.PIIEmployeeID:
+		return true
+	}
+	return false
+}
+
+// convertToAnonymizerFindings converts models.Finding slices to the format
+// expected by the anonymizer package.
+func convertToAnonymizerFindings(findings []models.Finding) []anonymizer.Finding {
+	out := make([]anonymizer.Finding, 0, len(findings))
+	for _, f := range findings {
+		out = append(out, anonymizer.Finding{
+			Type:     models.PIIType(f.Type),
+			Value:    f.Value,
+			StartPos: f.StartPos,
+			EndPos:   f.EndPos,
+		})
+	}
+	return out
 }
