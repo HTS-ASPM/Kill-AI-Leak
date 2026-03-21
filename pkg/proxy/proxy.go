@@ -30,12 +30,35 @@ type GuardrailEngine interface {
 
 // wellKnownProviders maps canonical provider names to their upstream base URLs.
 var wellKnownProviders = map[string]string{
-	"openai":    "https://api.openai.com",
-	"anthropic": "https://api.anthropic.com",
-	"google":    "https://generativelanguage.googleapis.com",
-	"cohere":    "https://api.cohere.ai",
-	"mistral":   "https://api.mistral.ai",
-	"azure":     "https://openai.azure.com",
+	// Major LLM providers
+	"openai":      "https://api.openai.com",
+	"anthropic":   "https://api.anthropic.com",
+	"google":      "https://generativelanguage.googleapis.com",
+	"gemini":      "https://generativelanguage.googleapis.com",
+	"deepseek":    "https://api.deepseek.com",
+	"grok":        "https://api.x.ai",
+	"xai":         "https://api.x.ai",
+	"perplexity":  "https://api.perplexity.ai",
+	"mistral":     "https://api.mistral.ai",
+	"cohere":      "https://api.cohere.ai",
+
+	// Cloud provider AI
+	"azure":       "https://openai.azure.com",
+	"bedrock":     "https://bedrock-runtime.us-east-1.amazonaws.com",
+	"vertex":      "https://us-central1-aiplatform.googleapis.com",
+
+	// Inference platforms
+	"together":    "https://api.together.xyz",
+	"fireworks":   "https://api.fireworks.ai",
+	"groq":        "https://api.groq.com",
+	"replicate":   "https://api.replicate.com",
+	"openrouter":  "https://openrouter.ai",
+	"anyscale":    "https://api.endpoints.anyscale.com",
+
+	// Self-hosted / local
+	"ollama":      "http://localhost:11434",
+	"vllm":        "http://localhost:8000",
+	"llamacpp":    "http://localhost:8080",
 }
 
 // LLMProxy is the core reverse proxy that sits between callers and upstream

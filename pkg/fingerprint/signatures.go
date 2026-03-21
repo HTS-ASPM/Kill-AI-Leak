@@ -179,6 +179,80 @@ var builtinSignatures = []Signature{
 		HeaderPatterns: map[string]string{},
 	},
 	{
+		Provider: "grok",
+		Domains:  []string{"api.x.ai", "api.grok.com"},
+		PathPrefixes: []string{
+			"/v1/chat/completions",
+			"/v1/completions",
+			"/v1/embeddings",
+		},
+		HeaderPatterns: map[string]string{
+			"authorization": "Bearer xai-",
+		},
+	},
+	{
+		Provider: "perplexity",
+		Domains:  []string{"api.perplexity.ai"},
+		PathPrefixes: []string{
+			"/chat/completions",
+			"/v1/chat/completions",
+		},
+		HeaderPatterns: map[string]string{
+			"authorization": "Bearer pplx-",
+		},
+	},
+	{
+		Provider: "openrouter",
+		Domains:  []string{"openrouter.ai", "api.openrouter.ai"},
+		PathPrefixes: []string{
+			"/api/v1/chat/completions",
+			"/api/v1/completions",
+		},
+		HeaderPatterns: map[string]string{
+			"authorization":  "Bearer sk-or-",
+			"x-title":        "",
+			"http-referer":   "",
+		},
+	},
+	{
+		Provider: "replicate",
+		Domains:  []string{"api.replicate.com"},
+		PathPrefixes: []string{
+			"/v1/predictions",
+			"/v1/models",
+			"/v1/deployments",
+		},
+		HeaderPatterns: map[string]string{
+			"authorization": "Bearer r8_",
+		},
+	},
+	{
+		Provider: "ai21",
+		Domains:  []string{"api.ai21.com"},
+		PathPrefixes: []string{
+			"/studio/v1/chat/completions",
+			"/studio/v1/j2-",
+			"/v1/chat/completions",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
+		Provider: "cerebras",
+		Domains:  []string{"api.cerebras.ai"},
+		PathPrefixes: []string{
+			"/v1/chat/completions",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
+		Provider: "sambanova",
+		Domains:  []string{"api.sambanova.ai", "fast-api.snova.ai"},
+		PathPrefixes: []string{
+			"/v1/chat/completions",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
 		Provider: "ollama",
 		Domains:  []string{"localhost:11434", "127.0.0.1:11434", "ollama"},
 		PathPrefixes: []string{
@@ -187,6 +261,25 @@ var builtinSignatures = []Signature{
 			"/api/embeddings",
 			"/api/pull",
 			"/api/tags",
+			"/v1/chat/completions",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
+		Provider: "vllm",
+		Domains:  []string{"localhost:8000", "127.0.0.1:8000"},
+		PathPrefixes: []string{
+			"/v1/chat/completions",
+			"/v1/completions",
+			"/v1/models",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
+		Provider: "llamacpp",
+		Domains:  []string{"localhost:8080", "127.0.0.1:8080"},
+		PathPrefixes: []string{
+			"/completion",
 			"/v1/chat/completions",
 		},
 		HeaderPatterns: map[string]string{},
