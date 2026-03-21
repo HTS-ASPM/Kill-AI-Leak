@@ -116,15 +116,41 @@ var builtinSignatures = []Signature{
 		Domains: []string{
 			"api-inference.huggingface.co",
 			"huggingface.co",
+			"api.huggingface.co",
 		},
 		PathPrefixes: []string{
 			"/models/",
 			"/api/models",
 			"/pipeline/",
+			"/v1/chat/completions",
+			"/api/inference",
 		},
 		HeaderPatterns: map[string]string{
 			"authorization": "Bearer hf_",
 		},
+	},
+	{
+		Provider: "google_aistudio",
+		Domains: []string{
+			"aistudio.google.com",
+			"makersuite.google.com",
+		},
+		PathPrefixes: []string{
+			"/app/",
+			"/api/",
+		},
+		HeaderPatterns: map[string]string{},
+	},
+	{
+		Provider: "notebooklm",
+		Domains: []string{
+			"notebooklm.google.com",
+			"notebooklm.google",
+		},
+		PathPrefixes: []string{
+			"/",
+		},
+		HeaderPatterns: map[string]string{},
 	},
 	{
 		Provider: "together_ai",

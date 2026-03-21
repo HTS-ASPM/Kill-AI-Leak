@@ -47,6 +47,14 @@ var wellKnownProviders = map[string]string{
 	"bedrock":     "https://bedrock-runtime.us-east-1.amazonaws.com",
 	"vertex":      "https://us-central1-aiplatform.googleapis.com",
 
+	// Google AI
+	"aistudio":    "https://generativelanguage.googleapis.com",
+	"notebooklm":  "https://notebooklm.google.com",
+
+	// Hugging Face
+	"huggingface": "https://api-inference.huggingface.co",
+	"hf":          "https://api-inference.huggingface.co",
+
 	// Inference platforms
 	"together":    "https://api.together.xyz",
 	"fireworks":   "https://api.fireworks.ai",

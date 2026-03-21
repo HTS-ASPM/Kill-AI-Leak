@@ -85,7 +85,9 @@
     "https://api.replicate.com/*",
     "https://app.wordtune.com/*",
     "https://app.grammarly.com/*",
-    "https://ollama.com/*"
+    "https://ollama.com/*",
+    "https://makersuite.google.com/*",
+    "https://api.huggingface.co/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
