@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/health"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
@@ -22,6 +23,9 @@ import (
 	detstateful "github.com/kill-ai-leak/kill-ai-leak/pkg/detection/stateful"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/ml"
+	mlinjection "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/injection"
+	mltoxicity "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/proxy"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/stateful"
@@ -39,11 +43,19 @@ func main() {
 func run() error {
 	// --- CLI flags ---
 	var (
-		configFile = flag.String("config", "", "path to YAML config file")
-		port       = flag.Int("port", 0, "override server port")
-		logLevel   = flag.String("log-level", "", "override log level (debug|info|warn|error)")
+		configFile  = flag.String("config", "", "path to YAML config file")
+		port        = flag.Int("port", 0, "override server port")
+		logLevel    = flag.String("log-level", "", "override log level (debug|info|warn|error)")
+		mlServerURL = flag.String("ml-server", "", "ML inference server URL (e.g. http://localhost:5000); empty to disable ML scoring")
 	)
 	flag.Parse()
+
+	// Also accept ML server URL from environment variable.
+	if *mlServerURL == "" {
+		if envURL := os.Getenv("ML_SERVER_URL"); envURL != "" {
+			*mlServerURL = envURL
+		}
+	}
 
 	// --- Load configuration ---
 	cfg, err := config.LoadFromFile(*configFile)
@@ -84,14 +96,30 @@ func run() error {
 	if cfg.Guardrails.Enabled {
 		registry := guardrails.NewRegistry()
 
+		// Create detection rules.
+		injDet := injection.New()
+		toxDet := toxicity.New()
+
+		// --- ML inference layer ---
+		if *mlServerURL != "" {
+			mlClient := ml.NewInferenceClient(*mlServerURL, 2*time.Second)
+			injDet.SetMLScorer(mlinjection.NewMLInjectionScorer(mlClient))
+			toxDet.SetMLScorer(mltoxicity.NewMLToxicityScorer(mlClient))
+			log.Info(ctx, "ML inference enabled", map[string]any{
+				"ml_server": *mlServerURL,
+			})
+		} else {
+			log.Info(ctx, "ML inference disabled (regex-only mode)")
+		}
+
 		// Register all detection rules with default config.
 		rules := []guardrails.Rule{
 			ratelimit.New(),
 			pii.New(),
 			secrets.New(),
-			injection.New(),
+			injDet,
 			jailbreak.New(),
-			toxicity.New(),
+			toxDet,
 			code.New(),
 			detstateful.New(sessionTracker),
 		}

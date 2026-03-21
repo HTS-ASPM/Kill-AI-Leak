@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	mltoxicity "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
@@ -101,10 +102,12 @@ func initCategoryPatterns() {
 
 // Detector scores output text across toxicity categories and reports
 // per-category scores. Configurable thresholds control the block/alert
-// decision for each category independently.
+// decision for each category independently. An optional ML scorer can be
+// attached to blend ML model scores with keyword-based scores.
 type Detector struct {
-	mu  sync.RWMutex
-	cfg detectorConfig
+	mu       sync.RWMutex
+	cfg      detectorConfig
+	mlScorer *mltoxicity.MLToxicityScorer
 }
 
 // defaultThresholds for each category. Values above the threshold trigger
@@ -134,6 +137,15 @@ func New() *Detector {
 			thresholds: thresholds,
 		},
 	}
+}
+
+// SetMLScorer attaches an ML-based toxicity scorer. When set, Evaluate
+// blends per-category ML scores with keyword scores. Pass nil to disable
+// ML scoring and revert to keyword-only.
+func (d *Detector) SetMLScorer(scorer *mltoxicity.MLToxicityScorer) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.mlScorer = scorer
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +225,35 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 		}
 
 		categoryScores[cat] = catScore
+	}
 
+	// --- ML scoring layer (optional) ---
+	// If an ML scorer is attached and the server is available, blend ML
+	// per-category scores with the keyword scores. For each category:
+	// finalScore = max(keywordScore, 0.4*keywordScore + 0.6*mlScore).
+	d.mu.RLock()
+	scorer := d.mlScorer
+	d.mu.RUnlock()
+
+	if scorer != nil {
+		mlScores, mlErr := scorer.Score(ctx.Context(), text)
+		if mlErr == nil && mlScores != nil {
+			for _, cat := range AllCategories {
+				kwScore := categoryScores[cat]
+				mlCatKey := string(cat)
+				if mlVal, ok := mlScores[mlCatKey]; ok {
+					blended := 0.4*kwScore + 0.6*mlVal
+					categoryScores[cat] = math.Max(kwScore, blended)
+				}
+			}
+		}
+		// If mlScores == nil (server unavailable) or mlErr != nil, we
+		// silently fall back to keyword-only (categoryScores stay unchanged).
+	}
+
+	// --- Per-category threshold check and highest score ---
+	for _, cat := range AllCategories {
+		catScore := categoryScores[cat]
 		// Check threshold.
 		threshold := cfg.thresholds[cat]
 		if threshold == 0 {

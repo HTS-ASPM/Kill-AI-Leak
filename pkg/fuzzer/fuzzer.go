@@ -1,14 +1,20 @@
 package fuzzer
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
 // ---------------------------------------------------------------------------
@@ -640,4 +646,167 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// ---------------------------------------------------------------------------
+// Gateway-targeting fuzzer
+// ---------------------------------------------------------------------------
+
+// FuzzGateway runs a full fuzzing campaign against a live gateway's
+// /api/evaluate endpoint. It sends payloads as OpenAI-format POST requests,
+// parses the PipelineResult response, and populates the Campaign with
+// per-payload detection outcomes.
+//
+// A payload is considered "detected" if any guardrail evaluation has
+// decision != "allow" OR has findings with confidence > 0.5.
+func FuzzGateway(ctx context.Context, baseURL string, categories []string, mutations int, concurrency int) (*Campaign, error) {
+	if concurrency <= 0 {
+		concurrency = 5
+	}
+	if mutations < 0 {
+		mutations = 3
+	}
+
+	cfg := FuzzerConfig{
+		MutationsPerPayload: mutations,
+		Concurrency:         concurrency,
+		RequestTimeout:      30 * time.Second,
+		Logger:              slog.Default(),
+	}
+
+	// Map string categories to PayloadCategory values.
+	if len(categories) > 0 {
+		catMap := map[string]PayloadCategory{
+			"injection":    CategoryInjection,
+			"jailbreak":    CategoryJailbreak,
+			"extraction":   CategoryExtraction,
+			"system_prompt": CategorySystemPrompt,
+			"payload_split": CategoryPayloadSplit,
+		}
+		for _, c := range categories {
+			if pc, ok := catMap[strings.ToLower(strings.TrimSpace(c))]; ok {
+				cfg.Categories = append(cfg.Categories, pc)
+			}
+		}
+	}
+
+	f := New(cfg)
+	evaluateURL := strings.TrimRight(baseURL, "/") + "/api/evaluate"
+
+	targetFn := func(reqCtx context.Context, systemPrompt, userMessage string) (string, error) {
+		return sendGatewayRequest(reqCtx, evaluateURL, systemPrompt, userMessage)
+	}
+
+	return f.FuzzTarget(ctx, evaluateURL, "", targetFn)
+}
+
+// gatewayEvalRequest is the OpenAI-format request body sent to the gateway.
+type gatewayEvalRequest struct {
+	Model    string                   `json:"model"`
+	Messages []gatewayEvalMessage     `json:"messages"`
+}
+
+type gatewayEvalMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// sendGatewayRequest sends a single payload to the gateway /api/evaluate
+// endpoint as an OpenAI-format message and returns a string representation
+// of the response that the fuzzer's evaluateResponse can analyze.
+func sendGatewayRequest(ctx context.Context, evaluateURL, systemPrompt, userMessage string) (string, error) {
+	messages := []gatewayEvalMessage{
+		{Role: "user", Content: userMessage},
+	}
+	if systemPrompt != "" {
+		messages = append([]gatewayEvalMessage{
+			{Role: "system", Content: systemPrompt},
+		}, messages...)
+	}
+
+	reqBody := gatewayEvalRequest{
+		Model:    "test-model",
+		Messages: messages,
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, evaluateURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	// Parse the PipelineResult to determine if the payload was detected.
+	var result models.PipelineResult
+	if err := json.Unmarshal(respBytes, &result); err != nil {
+		// If we can't parse it, return the raw response for text-based analysis.
+		return string(respBytes), nil
+	}
+
+	// Build a synthetic response string that the fuzzer's evaluateResponse
+	// can analyze. If the gateway detected the attack, indicate refusal.
+	detected := isPayloadDetected(&result)
+	if detected {
+		return fmt.Sprintf("I can't assist with that. Request blocked by %s. Decision: %s",
+			result.BlockedBy, result.FinalDecision), nil
+	}
+
+	// Not detected -- return an "allowed" response.
+	return fmt.Sprintf("Request allowed. Decision: %s", result.FinalDecision), nil
+}
+
+// isPayloadDetected checks if the gateway's PipelineResult indicates that
+// the payload was flagged. A payload is "detected" if:
+//   - The final decision is not "allow", OR
+//   - Any evaluation has a decision != "allow", OR
+//   - Any finding has confidence > 0.5
+func isPayloadDetected(result *models.PipelineResult) bool {
+	if result.FinalDecision != models.DecisionAllow {
+		return true
+	}
+	if result.Blocked {
+		return true
+	}
+	for _, eval := range result.Evaluations {
+		if eval.Decision != models.DecisionAllow {
+			return true
+		}
+		for _, f := range eval.Findings {
+			if f.Confidence > 0.5 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ParsePipelineResult parses a raw HTTP response body into a PipelineResult.
+// Exported so the CLI and tests can reuse it.
+func ParsePipelineResult(body []byte) (*models.PipelineResult, error) {
+	var result models.PipelineResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("parse pipeline result: %w", err)
+	}
+	return &result, nil
+}
+
+// IsPayloadDetected is the exported version of isPayloadDetected so
+// callers (tests, CLI) can check detection from a PipelineResult.
+func IsPayloadDetected(result *models.PipelineResult) bool {
+	return isPayloadDetected(result)
 }

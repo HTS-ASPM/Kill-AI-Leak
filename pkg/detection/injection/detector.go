@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	mlinjection "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/injection"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
@@ -119,10 +120,12 @@ func initHeuristics() {
 // ---------------------------------------------------------------------------
 
 // Detector performs two-layer prompt injection detection and returns a
-// confidence score between 0 and 1.
+// confidence score between 0 and 1. An optional ML scorer can be attached
+// to add a third ML-inference scoring layer.
 type Detector struct {
-	mu  sync.RWMutex
-	cfg detectorConfig
+	mu        sync.RWMutex
+	cfg       detectorConfig
+	mlScorer  *mlinjection.MLInjectionScorer
 }
 
 type detectorConfig struct {
@@ -146,6 +149,15 @@ func New() *Detector {
 			alertThreshold:  0.4,
 		},
 	}
+}
+
+// SetMLScorer attaches an ML-based injection scorer. When set, the Evaluate
+// method combines the regex/heuristic score with the ML model score. Pass
+// nil to disable ML scoring and revert to regex-only.
+func (d *Detector) SetMLScorer(scorer *mlinjection.MLInjectionScorer) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.mlScorer = scorer
 }
 
 // ---------------------------------------------------------------------------
@@ -252,9 +264,31 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 	// Cap the heuristic score at 1.0
 	heuristicScore = math.Min(heuristicScore, 1.0)
 
-	// --- Combine scores ---
-	combined := cfg.signatureWeight*sigScore + (1.0-cfg.signatureWeight)*heuristicScore
-	combined = math.Min(combined, 1.0)
+	// --- Combine regex/heuristic scores ---
+	regexCombined := cfg.signatureWeight*sigScore + (1.0-cfg.signatureWeight)*heuristicScore
+	regexCombined = math.Min(regexCombined, 1.0)
+
+	// --- ML scoring layer (optional) ---
+	// If an ML scorer is attached and the server is available, blend the ML
+	// score with the regex score. The ML model has higher weight (0.6) but
+	// the regex score can independently block if it is higher than the
+	// blended result: finalScore = max(regexScore, 0.4*regexScore + 0.6*mlScore).
+	combined := regexCombined
+	d.mu.RLock()
+	scorer := d.mlScorer
+	d.mu.RUnlock()
+
+	if scorer != nil {
+		mlScore, mlErr := scorer.Score(ctx.Context(), text)
+		if mlErr == nil && mlScore >= 0 {
+			// ML server responded with a valid score.
+			blended := 0.4*regexCombined + 0.6*mlScore
+			combined = math.Max(regexCombined, blended)
+			combined = math.Min(combined, 1.0)
+		}
+		// If mlScore == -1 (server unavailable) or mlErr != nil, we
+		// silently fall back to regex-only (combined stays regexCombined).
+	}
 
 	// Merge findings.
 	allFindings := append(sigFindings, heurFindings...)
