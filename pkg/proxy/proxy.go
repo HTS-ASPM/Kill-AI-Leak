@@ -82,8 +82,22 @@ type LLMProxy struct {
 	targets    map[string]*url.URL
 	transports map[string]*http.Transport
 	anonymizer *anonymizer.Anonymizer
+	store      EventRecorder
 
 	mu sync.RWMutex
+}
+
+// EventRecorder is an optional sink for recording events and services.
+// Implemented by *store.Store.
+type EventRecorder interface {
+	RecordEvent(event models.Event)
+	RecordService(svc models.AIService)
+}
+
+// SetStore attaches an event recorder to the proxy. If set, guardrail
+// evaluation results are automatically recorded as events.
+func (p *LLMProxy) SetStore(s EventRecorder) {
+	p.store = s
 }
 
 // NewLLMProxy constructs an LLMProxy from configuration and a guardrail engine.
@@ -134,6 +148,7 @@ func NewLLMProxy(cfg *config.AppConfig, engine GuardrailEngine, log *logger.Logg
 //  6. Return (possibly modified) response to the caller
 func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	requestStart := time.Now()
 
 	// --- 1. Extract service identity and provider ---
 	actor := middleware.ActorFromContext(ctx)
@@ -225,6 +240,9 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"decision":   string(inputResult.FinalDecision),
 				"app_id":     actor.ID,
 			})
+
+			p.recordEvent(actor, provider, promptText, inputResult, nil, true, time.Since(requestStart).Milliseconds())
+
 			respondJSON(w, http.StatusForbidden, blockedResponse{
 				Error:     "request_blocked",
 				Message:   "Your request was blocked by security policy",
@@ -457,6 +475,96 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	copyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	_, _ = w.Write(respBody)
+
+	// --- 10. Record event and service ---
+	blocked := false
+	if inputResult != nil && inputResult.Blocked {
+		blocked = true
+	}
+	p.recordEvent(actor, provider, promptText, inputResult, nil, blocked, time.Since(requestStart).Milliseconds())
+}
+
+// recordEvent creates and records an Event and a corresponding AIService entry
+// when a store is configured.
+func (p *LLMProxy) recordEvent(actor *models.Actor, provider, prompt string, inputResult, outputResult *models.PipelineResult, blocked bool, latencyMs int64) {
+	if p.store == nil {
+		return
+	}
+
+	severity := models.SeverityInfo
+	if blocked {
+		severity = models.SeverityHigh
+	}
+
+	var grResults []models.GuardrailResult
+	appendResults := func(pr *models.PipelineResult) {
+		if pr == nil {
+			return
+		}
+		for _, eval := range pr.Evaluations {
+			grResults = append(grResults, models.GuardrailResult{
+				RuleID:     eval.RuleID,
+				RuleName:   eval.RuleName,
+				Stage:      string(eval.Stage),
+				Decision:   string(eval.Decision),
+				Confidence: eval.Confidence,
+				Reason:     eval.Reason,
+				LatencyMs:  eval.LatencyMs,
+			})
+		}
+	}
+	appendResults(inputResult)
+	appendResults(outputResult)
+
+	ev := models.Event{
+		ID:        fmt.Sprintf("evt-%d", time.Now().UnixNano()),
+		Timestamp: time.Now(),
+		Source:    models.SourceInlineGateway,
+		Severity: severity,
+		Actor:    *actor,
+		Target: models.Target{
+			Type:     models.TargetLLMProvider,
+			ID:       provider,
+			Provider: provider,
+		},
+		Action: models.Action{
+			Type:      models.ActionAPICall,
+			Direction: models.DirectionOutbound,
+			Protocol:  "https",
+			Method:    "POST",
+		},
+		Content: models.ContentMeta{
+			HasPrompt: prompt != "",
+			Blocked:   blocked,
+			Model:     provider,
+		},
+		Guardrails: grResults,
+		LatencyMs:  latencyMs,
+	}
+
+	p.store.RecordEvent(ev)
+
+	// Also upsert a service entry.
+	svc := models.AIService{
+		ID:              actor.ID,
+		Name:            actor.Name,
+		Namespace:       actor.Namespace,
+		Team:            actor.Team,
+		GatewayEnrolled: true,
+		LastSeenAt:      time.Now(),
+		DiscoveredBy:    models.SourceInlineGateway,
+		Providers: []models.ProviderUsage{
+			{
+				Provider:   provider,
+				CallCount7d: 1,
+				LastCallAt: time.Now(),
+			},
+		},
+	}
+	if svc.Name == "" {
+		svc.Name = actor.ID
+	}
+	p.store.RecordService(svc)
 }
 
 // resolveTarget returns the parsed URL for a provider, or nil.

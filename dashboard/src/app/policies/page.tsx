@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   Pencil,
@@ -16,6 +16,13 @@ import {
   Power,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import {
+  fetchPolicies,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+  dryRunPolicy,
+} from "@/lib/api";
 import type { AISecurityPolicy, EnforcementMode } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -159,16 +166,38 @@ const modeDescriptions: Record<EnforcementMode, string> = {
 
 export default function PoliciesPage() {
   const [policies, setPolicies] = useState(demoPolicies);
+  const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editorContent, setEditorContent] = useState("");
   const [editingPolicy, setEditingPolicy] = useState<string | null>(null);
   const [showDryRun, setShowDryRun] = useState(false);
   const [dryRunPrompt, setDryRunPrompt] = useState("");
-  const [dryRunPolicy, setDryRunPolicy] = useState("");
+  const [dryRunPolicyName, setDryRunPolicyName] = useState("");
   const [dryRunResult, setDryRunResult] = useState<{
     decision: string;
     rules: Array<{ name: string; decision: string; reason: string }>;
   } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const data = await fetchPolicies();
+        if (!cancelled && data) {
+          setPolicies(data);
+        }
+      } catch {
+        // keep demo data on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   function openEditor(policy?: AISecurityPolicy) {
     if (policy) {
@@ -215,28 +244,43 @@ export default function PoliciesPage() {
     );
   }
 
-  function runDryRun() {
-    // Simulated dry-run result
-    setDryRunResult({
-      decision: "block",
-      rules: [
-        {
-          name: "PII Blocker",
-          decision: "block",
-          reason: "Email address detected in prompt",
-        },
-        {
-          name: "Secrets Scanner",
-          decision: "allow",
-          reason: "No secrets found",
-        },
-        {
-          name: "Injection Guard",
-          decision: "allow",
-          reason: "Injection score: 0.12 (below threshold)",
-        },
-      ],
-    });
+  async function runDryRun() {
+    try {
+      const result = await dryRunPolicy({
+        prompt: dryRunPrompt,
+        policy_name: dryRunPolicyName || undefined,
+      });
+      setDryRunResult({
+        decision: result.blocked ? "block" : result.decision,
+        rules: result.evaluations.map((e) => ({
+          name: e.rule_name,
+          decision: e.decision,
+          reason: e.reason ?? "",
+        })),
+      });
+    } catch {
+      // Fallback to simulated result on API failure
+      setDryRunResult({
+        decision: "block",
+        rules: [
+          {
+            name: "PII Blocker",
+            decision: "block",
+            reason: "Email address detected in prompt",
+          },
+          {
+            name: "Secrets Scanner",
+            decision: "allow",
+            reason: "No secrets found",
+          },
+          {
+            name: "Injection Guard",
+            decision: "allow",
+            reason: "Injection score: 0.12 (below threshold)",
+          },
+        ],
+      });
+    }
   }
 
   return (
@@ -360,6 +404,16 @@ export default function PoliciesPage() {
                   <button
                     className="rounded-lg p-2 text-gray-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                     title="Delete policy"
+                    onClick={async () => {
+                      try {
+                        await deletePolicy(policy.metadata.name);
+                        setPolicies((prev) =>
+                          prev.filter((p) => p.metadata.name !== policy.metadata.name),
+                        );
+                      } catch {
+                        // API failure - keep current state
+                      }
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -439,8 +493,25 @@ export default function PoliciesPage() {
               </button>
               <button
                 className="btn-primary"
-                onClick={() => {
-                  // In production, this would call createPolicy / updatePolicy
+                onClick={async () => {
+                  try {
+                    const parsed = JSON.parse(editorContent) as AISecurityPolicy;
+                    if (editingPolicy) {
+                      const updated = await updatePolicy(editingPolicy, parsed).catch(() => null);
+                      if (updated) {
+                        setPolicies((prev) =>
+                          prev.map((p) => (p.metadata.name === editingPolicy ? updated : p)),
+                        );
+                      }
+                    } else {
+                      const created = await createPolicy(parsed).catch(() => null);
+                      if (created) {
+                        setPolicies((prev) => [...prev, created]);
+                      }
+                    }
+                  } catch {
+                    // JSON parse error or API failure - keep current state
+                  }
                   setShowEditor(false);
                 }}
               >
@@ -494,8 +565,8 @@ export default function PoliciesPage() {
                 <div className="relative">
                   <select
                     className="select w-full appearance-none pr-8"
-                    value={dryRunPolicy}
-                    onChange={(e) => setDryRunPolicy(e.target.value)}
+                    value={dryRunPolicyName}
+                    onChange={(e) => setDryRunPolicyName(e.target.value)}
                   >
                     <option value="">All policies</option>
                     {policies.map((p) => (

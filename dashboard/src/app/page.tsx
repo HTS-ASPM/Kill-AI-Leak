@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Server,
   Shield,
@@ -12,6 +12,13 @@ import {
 import MetricCard from "@/components/MetricCard";
 import EventTable from "@/components/EventTable";
 import { ThreatActivityChart, RiskPieChart } from "@/components/Chart";
+import {
+  fetchStats,
+  fetchThreatActivity,
+  fetchRiskBreakdown,
+  fetchTopServices,
+  fetchRecentAlerts,
+} from "@/lib/api";
 import type {
   DashboardStats,
   Event,
@@ -21,10 +28,10 @@ import type {
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// Static demo data -- replaced by API calls in production
+// Fallback demo data -- used when the API is unreachable
 // ---------------------------------------------------------------------------
 
-const stats: DashboardStats = {
+const demoStats: DashboardStats = {
   total_services: 47,
   active_guardrails: 23,
   blocked_threats_24h: 142,
@@ -34,7 +41,7 @@ const stats: DashboardStats = {
   avg_latency_ms: 12,
 };
 
-const threatActivity: ThreatActivityPoint[] = [
+const demoThreatActivity: ThreatActivityPoint[] = [
   { date: "Mar 14", blocked: 38, allowed: 1420 },
   { date: "Mar 15", blocked: 52, allowed: 1380 },
   { date: "Mar 16", blocked: 41, allowed: 1510 },
@@ -44,7 +51,7 @@ const threatActivity: ThreatActivityPoint[] = [
   { date: "Mar 20", blocked: 142, allowed: 1610 },
 ];
 
-const riskBreakdown: RiskBreakdown[] = [
+const demoRiskBreakdown: RiskBreakdown[] = [
   { category: "PII Exposure", count: 34, color: "#ef4444" },
   { category: "Injection", count: 22, color: "#f97316" },
   { category: "Shadow AI", count: 18, color: "#eab308" },
@@ -53,7 +60,7 @@ const riskBreakdown: RiskBreakdown[] = [
   { category: "Toxicity", count: 6, color: "#06b6d4" },
 ];
 
-const topServices: TopService[] = [
+const demoTopServices: TopService[] = [
   { name: "chatbot-api", namespace: "production", calls_7d: 42_810, cost_7d_usd: 2_140, risk_score: 0.23 },
   { name: "code-review-agent", namespace: "engineering", calls_7d: 28_340, cost_7d_usd: 1_830, risk_score: 0.41 },
   { name: "support-summarizer", namespace: "customer-ops", calls_7d: 19_720, cost_7d_usd: 890, risk_score: 0.18 },
@@ -61,7 +68,7 @@ const topServices: TopService[] = [
   { name: "sales-copilot", namespace: "go-to-market", calls_7d: 12_450, cost_7d_usd: 620, risk_score: 0.55 },
 ];
 
-const recentEvents: Event[] = [
+const demoRecentEvents: Event[] = [
   {
     id: "evt-001",
     timestamp: new Date(Date.now() - 2 * 60_000).toISOString(),
@@ -218,6 +225,45 @@ function getRiskBar(score: number): string {
 
 export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>(demoStats);
+  const [threatActivity, setThreatActivity] = useState<ThreatActivityPoint[]>(demoThreatActivity);
+  const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown[]>(demoRiskBreakdown);
+  const [topServices, setTopServices] = useState<TopService[]>(demoTopServices);
+  const [recentEvents, setRecentEvents] = useState<Event[]>(demoRecentEvents);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [statsData, threatData, riskData, servicesData, alertsData] =
+          await Promise.all([
+            fetchStats().catch(() => null),
+            fetchThreatActivity().catch(() => null),
+            fetchRiskBreakdown().catch(() => null),
+            fetchTopServices().catch(() => null),
+            fetchRecentAlerts().catch(() => null),
+          ]);
+
+        if (cancelled) return;
+
+        if (statsData) setStats(statsData);
+        if (threatData) setThreatActivity(threatData);
+        if (riskData) setRiskBreakdown(riskData);
+        if (servicesData) setTopServices(servicesData);
+        if (alertsData) setRecentEvents(alertsData);
+      } catch {
+        // keep demo data on total failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="space-y-6">

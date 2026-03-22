@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -11,13 +11,14 @@ import {
   Shield,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { fetchInventory } from "@/lib/api";
 import type { AIService } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// Demo data
+// Fallback demo data -- used when the API is unreachable
 // ---------------------------------------------------------------------------
 
-const services: AIService[] = [
+const demoServices: AIService[] = [
   {
     id: "svc-1",
     name: "chatbot-api",
@@ -193,6 +194,8 @@ function isShadow(svc: AIService): boolean {
 // ---------------------------------------------------------------------------
 
 export default function InventoryPage() {
+  const [services, setServices] = useState<AIService[]>(demoServices);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [nsFilter, setNsFilter] = useState<string>("");
   const [providerFilter, setProviderFilter] = useState<string>("");
@@ -201,16 +204,41 @@ export default function InventoryPage() {
     null,
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const response = await fetchInventory({
+          namespace: nsFilter || undefined,
+          provider: providerFilter || undefined,
+          search: search || undefined,
+        });
+        if (!cancelled && response.data) {
+          setServices(response.data);
+        }
+      } catch {
+        // keep demo data on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [nsFilter, providerFilter, search]);
+
   const namespaces = useMemo(
     () => Array.from(new Set(services.map((s) => s.namespace))).sort(),
-    [],
+    [services],
   );
   const providers = useMemo(
     () =>
       Array.from(
         new Set(services.flatMap((s) => s.providers.map((p) => p.provider))),
       ).sort(),
-    [],
+    [services],
   );
 
   const filtered = useMemo(() => {
@@ -234,7 +262,7 @@ export default function InventoryPage() {
         return false;
       return true;
     });
-  }, [search, nsFilter, providerFilter, riskFilter]);
+  }, [services, search, nsFilter, providerFilter, riskFilter]);
 
   const activeFilters =
     [nsFilter, providerFilter, riskFilter].filter(Boolean).length;

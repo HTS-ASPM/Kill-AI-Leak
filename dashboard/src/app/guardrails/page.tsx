@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, Search, ChevronDown, ToggleLeft, ToggleRight } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { fetchGuardrails, updateGuardrail } from "@/lib/api";
 import type { GuardrailRuleConfig, EnforcementMode, GuardrailStage, RuleCategory } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Demo guardrail rules
 // ---------------------------------------------------------------------------
 
-const rules: GuardrailRuleConfig[] = [
+const demoRules: GuardrailRuleConfig[] = [
   { id: "pii-block", name: "PII Blocker", description: "Blocks prompts containing sensitive PII (SSN, credit cards, medical IDs)", stage: "input", category: "pii", mode: "enforce", priority: 10, enabled: true },
   { id: "pii-anon", name: "PII Anonymizer", description: "Replaces detected PII with anonymized tokens before forwarding to LLM", stage: "input", category: "pii", mode: "enforce", priority: 20, enabled: true },
   { id: "secrets-scan", name: "Secrets Scanner", description: "Detects API keys, tokens, passwords, and credentials in prompts", stage: "input", category: "secrets", mode: "enforce", priority: 15, enabled: true },
@@ -55,10 +56,32 @@ const stageBg: Record<GuardrailStage, string> = {
 // ---------------------------------------------------------------------------
 
 export default function GuardrailsPage() {
-  const [guardrails, setGuardrails] = useState(rules);
+  const [guardrails, setGuardrails] = useState(demoRules);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("");
   const [modeFilter, setModeFilter] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const data = await fetchGuardrails();
+        if (!cancelled && data) {
+          setGuardrails(data);
+        }
+      } catch {
+        // keep demo data on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = guardrails
     .filter((r) => {
@@ -82,20 +105,42 @@ export default function GuardrailsPage() {
     );
 
   function toggleRule(id: string) {
+    const rule = guardrails.find((r) => r.id === id);
+    if (!rule) return;
+    const newEnabled = !rule.enabled;
+
+    // Optimistic update
     setGuardrails((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)),
+      prev.map((r) => (r.id === id ? { ...r, enabled: newEnabled } : r)),
     );
+
+    // Persist to API (revert on failure)
+    updateGuardrail(id, { enabled: newEnabled }).catch(() => {
+      setGuardrails((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, enabled: !newEnabled } : r)),
+      );
+    });
   }
 
   function cycleMode(id: string) {
     const modes: EnforcementMode[] = ["off", "discover", "monitor", "enforce"];
+    const rule = guardrails.find((r) => r.id === id);
+    if (!rule) return;
+    const oldMode = rule.mode;
+    const idx = modes.indexOf(oldMode);
+    const newMode = modes[(idx + 1) % modes.length];
+
+    // Optimistic update
     setGuardrails((prev) =>
-      prev.map((r) => {
-        if (r.id !== id) return r;
-        const idx = modes.indexOf(r.mode);
-        return { ...r, mode: modes[(idx + 1) % modes.length] };
-      }),
+      prev.map((r) => (r.id === id ? { ...r, mode: newMode } : r)),
     );
+
+    // Persist to API (revert on failure)
+    updateGuardrail(id, { mode: newMode }).catch(() => {
+      setGuardrails((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, mode: oldMode } : r)),
+      );
+    });
   }
 
   const enabledCount = guardrails.filter((r) => r.enabled).length;

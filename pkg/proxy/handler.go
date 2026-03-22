@@ -18,10 +18,11 @@ import (
 // Handler bundles HTTP handlers for the inline gateway and wires them into a
 // single http.ServeMux.
 type Handler struct {
-	proxy   *LLMProxy
-	health  *health.Checker
-	log     *logger.Logger
-	cfg     *config.AppConfig
+	proxy      *LLMProxy
+	health     *health.Checker
+	log        *logger.Logger
+	cfg        *config.AppConfig
+	apiHandler *APIHandler
 
 	// Prometheus-style counters (simple atomic counters; a real deployment
 	// would use the prometheus client library).
@@ -29,6 +30,11 @@ type Handler struct {
 	blockedRequests atomic.Int64
 	errorCount      atomic.Int64
 	upstreamLatency atomic.Int64 // cumulative milliseconds
+}
+
+// SetAPIHandler attaches the data API handler so it can be registered.
+func (h *Handler) SetAPIHandler(api *APIHandler) {
+	h.apiHandler = api
 }
 
 // NewHandler constructs the Handler and returns a ready-to-use http.ServeMux.
@@ -43,6 +49,12 @@ func NewHandler(proxy *LLMProxy, hc *health.Checker, log *logger.Logger, cfg *co
 
 // Register mounts all routes onto the provided mux.
 func (h *Handler) Register(mux *http.ServeMux) {
+	// Data API endpoints for the dashboard (must be registered before the
+	// catch-all /api/protect/ route so that /api/v1/* paths match first).
+	if h.apiHandler != nil {
+		h.apiHandler.Register(mux)
+	}
+
 	// Main proxy endpoint -- requests like POST /api/protect/openai/v1/chat/completions.
 	mux.Handle("/api/protect/", h.protectHandler())
 

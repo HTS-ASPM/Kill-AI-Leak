@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
   Search,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import SeverityBadge from "@/components/SeverityBadge";
 import StatusBadge from "@/components/StatusBadge";
+import { fetchEvents } from "@/lib/api";
 import type { Event, Severity, EventSource } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ function genEvent(
   };
 }
 
-const events: Event[] = [
+const demoEvents: Event[] = [
   genEvent("evt-101", 1, "inline_gateway", "critical", "data-pipeline-llm", "data-eng", "OpenAI", "gpt-4o", "PII Blocker", "block", "SSN detected in prompt", ["ssn", "email"], 0.12),
   genEvent("evt-102", 3, "kernel_observer", "high", "unknown-svc", "default", "Anthropic", "claude-sonnet-4-20250514", "Shadow AI Detector", "alert", "Unregistered service calling LLM", undefined, 0.05),
   genEvent("evt-103", 7, "inline_gateway", "high", "code-review-agent", "engineering", "OpenAI", "gpt-4o", "Prompt Injection Guard", "block", "High injection score", undefined, 0.92),
@@ -97,15 +98,43 @@ const events: Event[] = [
 // ---------------------------------------------------------------------------
 
 export default function EventsPage() {
+  const [events, setEvents] = useState<Event[]>(demoEvents);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [decisionFilter, setDecisionFilter] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        const response = await fetchEvents({
+          severity: severityFilter || undefined,
+          source: sourceFilter || undefined,
+          decision: decisionFilter === "blocked" ? "blocked" : decisionFilter === "allowed" ? "allowed" : undefined,
+          search: search || undefined,
+        });
+        if (!cancelled && response.data) {
+          setEvents(response.data);
+        }
+      } catch {
+        // keep demo data on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [severityFilter, sourceFilter, decisionFilter, search]);
+
   const sources = useMemo(
     () => Array.from(new Set(events.map((e) => e.source))).sort(),
-    [],
+    [events],
   );
 
   const filtered = useMemo(() => {
@@ -130,7 +159,7 @@ export default function EventsPage() {
       }
       return true;
     });
-  }, [search, severityFilter, sourceFilter, decisionFilter]);
+  }, [events, search, severityFilter, sourceFilter, decisionFilter]);
 
   return (
     <div className="space-y-6">
@@ -432,11 +461,11 @@ export default function EventsPage() {
                   </div>
                 )}
 
-              {selectedEvent.content.injection_score > 0.5 && (
+              {(selectedEvent.content.injection_score ?? 0) > 0.5 && (
                 <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3">
                   <span className="text-xs font-semibold text-orange-400">
                     Injection Score:{" "}
-                    {(selectedEvent.content.injection_score * 100).toFixed(0)}%
+                    {((selectedEvent.content.injection_score ?? 0) * 100).toFixed(0)}%
                   </span>
                 </div>
               )}
