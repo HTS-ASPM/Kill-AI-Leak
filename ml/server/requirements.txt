@@ -1,3 +1,8 @@
 flask==3.1.0
-scikit-learn==1.6.1
-numpy==2.2.3
+transformers>=4.38.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+optimum[onnxruntime]>=1.17.0
+onnxruntime>=1.17.0
+numpy>=1.26.0
+sentencepiece>=0.2.0
