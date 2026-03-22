@@ -166,8 +166,8 @@ export default function EventsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Events</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-[#0f2137]">Events</h1>
+          <p className="mt-1 text-sm text-[#5a7184]">
             Real-time AI security event stream
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function EventsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a7184]" />
           <input
             type="text"
             placeholder="Search actors, providers, rules..."
@@ -203,7 +203,7 @@ export default function EventsPage() {
             <option value="low">Low</option>
             <option value="info">Info</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         <div className="relative">
@@ -219,7 +219,7 @@ export default function EventsPage() {
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         <div className="relative">
@@ -232,12 +232,12 @@ export default function EventsPage() {
             <option value="blocked">Blocked</option>
             <option value="allowed">Allowed</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         {(search || severityFilter || sourceFilter || decisionFilter) && (
           <button
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-1 text-xs text-[#5a7184] hover:text-[#1a2b3c]"
             onClick={() => {
               setSearch("");
               setSeverityFilter("");
@@ -249,7 +249,7 @@ export default function EventsPage() {
           </button>
         )}
 
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[#5a7184]">
           <Filter className="mr-1 inline h-3 w-3" />
           {filtered.length} events
         </span>
@@ -260,7 +260,7 @@ export default function EventsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-surface-300 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-blue-100 text-left text-xs font-medium uppercase tracking-wider text-[#5a7184]">
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">Source</th>
                 <th className="px-4 py-3">Actor</th>
@@ -270,7 +270,7 @@ export default function EventsPage() {
                 <th className="px-4 py-3">Severity</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-300">
+            <tbody className="divide-y divide-blue-50">
               {filtered.map((evt) => {
                 const topRule = evt.guardrails?.[0];
                 const decision = evt.content.blocked
@@ -282,12 +282,12 @@ export default function EventsPage() {
                 return (
                   <tr
                     key={evt.id}
-                    className="group cursor-pointer transition-colors hover:bg-surface-200/60"
+                    className="group cursor-pointer transition-colors hover:bg-blue-50/60"
                     onClick={() => setSelectedEvent(evt)}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-400">
+                    <td className="whitespace-nowrap px-4 py-3 text-[#5a7184]">
                       <div className="flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-gray-600" />
+                        <Clock className="h-3 w-3 text-blue-300" />
                         <span title={format(new Date(evt.timestamp), "PPpp")}>
                           {formatDistanceToNow(new Date(evt.timestamp), {
                             addSuffix: true,
@@ -296,35 +296,35 @@ export default function EventsPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <span className="rounded bg-surface-300 px-1.5 py-0.5 font-mono text-xs text-gray-300">
+                      <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs text-[#1a2b3c]">
                         {evt.source}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-[#1a2b3c]">
                       <div className="flex flex-col">
                         <span className="font-medium">
                           {evt.actor.name || evt.actor.id}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-[#5a7184]">
                           {evt.actor.namespace}
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-[#1a2b3c]">
                       <div className="flex flex-col">
                         <span>{evt.target.provider}</span>
-                        <span className="font-mono text-xs text-gray-500">
+                        <span className="font-mono text-xs text-[#5a7184]">
                           {evt.target.model}
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-400">
+                    <td className="whitespace-nowrap px-4 py-3 text-[#5a7184]">
                       {topRule ? (
-                        <span className="text-gray-300">
+                        <span className="text-[#1a2b3c]">
                           {topRule.rule_name}
                         </span>
                       ) : (
-                        <span className="text-gray-600">-</span>
+                        <span className="text-blue-300">-</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
@@ -340,7 +340,7 @@ export default function EventsPage() {
           </table>
 
           {filtered.length === 0 && (
-            <div className="flex items-center justify-center py-16 text-gray-500">
+            <div className="flex items-center justify-center py-16 text-[#5a7184]">
               No events match the current filters.
             </div>
           )}
@@ -354,21 +354,21 @@ export default function EventsPage() {
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="mx-4 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-surface-300 bg-surface-100 p-6 shadow-2xl animate-fade-in"
+            className="mx-4 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-blue-100 bg-white p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-[#0f2137]">
                   Event Detail
                 </h3>
-                <p className="mt-0.5 font-mono text-xs text-gray-500">
+                <p className="mt-0.5 font-mono text-xs text-[#5a7184]">
                   {selectedEvent.id}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="rounded-lg p-1 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1 text-[#5a7184] hover:bg-blue-50 hover:text-[#1a2b3c]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -394,9 +394,9 @@ export default function EventsPage() {
               </div>
 
               {/* Decision */}
-              <div className="rounded-lg border border-surface-300 bg-surface-200 p-4">
+              <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-300">Final Decision:</span>
+                  <span className="text-sm font-medium text-[#1a2b3c]">Final Decision:</span>
                   <StatusBadge status={selectedEvent.content.blocked ? "blocked" : "allowed"} />
                   {selectedEvent.content.anonymized && (
                     <StatusBadge status="anonymize" />
@@ -407,27 +407,27 @@ export default function EventsPage() {
               {/* Guardrails */}
               {selectedEvent.guardrails && selectedEvent.guardrails.length > 0 && (
                 <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                     Guardrails Triggered
                   </h4>
                   <div className="space-y-2">
                     {selectedEvent.guardrails.map((gr) => (
                       <div
                         key={gr.rule_id}
-                        className="rounded-lg border border-surface-300 bg-surface-200 p-3"
+                        className="rounded-lg border border-blue-100 bg-blue-50/50 p-3"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-200 text-sm">
+                          <span className="font-medium text-[#1a2b3c] text-sm">
                             {gr.rule_name}
                           </span>
                           <StatusBadge status={gr.decision} />
                         </div>
                         {gr.reason && (
-                          <p className="mt-1 text-xs text-gray-400">
+                          <p className="mt-1 text-xs text-[#5a7184]">
                             {gr.reason}
                           </p>
                         )}
-                        <div className="mt-2 flex gap-4 text-xs text-gray-500">
+                        <div className="mt-2 flex gap-4 text-xs text-[#5a7184]">
                           <span>Stage: {gr.stage}</span>
                           <span>
                             Confidence:{" "}
@@ -445,14 +445,14 @@ export default function EventsPage() {
               {selectedEvent.content.pii_detected &&
                 selectedEvent.content.pii_detected.length > 0 && (
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                       PII Detected
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedEvent.content.pii_detected.map((pii) => (
                         <span
                           key={pii}
-                          className="rounded bg-red-500/15 px-2 py-0.5 text-xs text-red-400 ring-1 ring-inset ring-red-500/30"
+                          className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-600 ring-1 ring-inset ring-red-200"
                         >
                           {pii}
                         </span>
@@ -462,8 +462,8 @@ export default function EventsPage() {
                 )}
 
               {(selectedEvent.content.injection_score ?? 0) > 0.5 && (
-                <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3">
-                  <span className="text-xs font-semibold text-orange-400">
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <span className="text-xs font-semibold text-orange-600">
                     Injection Score:{" "}
                     {((selectedEvent.content.injection_score ?? 0) * 100).toFixed(0)}%
                   </span>
@@ -490,14 +490,14 @@ function Field({
 }) {
   return (
     <div>
-      <span className="text-[11px] font-medium uppercase text-gray-500">
+      <span className="text-[11px] font-medium uppercase text-[#5a7184]">
         {label}
       </span>
       {children ? (
         <div className="mt-0.5">{children}</div>
       ) : (
         <p
-          className={`mt-0.5 text-sm text-gray-300 ${mono ? "font-mono" : ""}`}
+          className={`mt-0.5 text-sm text-[#1a2b3c] ${mono ? "font-mono" : ""}`}
         >
           {value}
         </p>

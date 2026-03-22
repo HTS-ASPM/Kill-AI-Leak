@@ -89,8 +89,8 @@ export default function FuzzerPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Security Fuzzer</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-[#0f2137]">Security Fuzzer</h1>
+          <p className="mt-1 text-sm text-[#5a7184]">
             Test your guardrails against known attack patterns
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function FuzzerPage() {
       {/* Configuration */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-gray-400">
+          <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
             Target Policy
           </label>
           <div className="relative">
@@ -126,7 +126,7 @@ export default function FuzzerPage() {
               <option value="engineering-permissive">engineering-permissive</option>
               <option value="data-strict">data-strict</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
           </div>
         </div>
       </div>
@@ -143,17 +143,17 @@ export default function FuzzerPage() {
             }
             className={`rounded-lg border p-3 text-left transition-colors ${
               selectedCategory === cat.id
-                ? "border-accent/50 bg-accent/5"
-                : "border-surface-300 bg-surface-100 hover:border-surface-400"
+                ? "border-blue-400 bg-blue-500/5"
+                : "border-blue-100 bg-white hover:border-blue-200"
             }`}
           >
-            <span className="text-xs font-medium text-gray-200">
+            <span className="text-xs font-medium text-[#1a2b3c]">
               {cat.label}
             </span>
-            <p className="mt-0.5 text-lg font-bold text-white">
+            <p className="mt-0.5 text-lg font-bold text-[#0f2137]">
               {cat.count}
             </p>
-            <p className="text-[10px] text-gray-500">payloads</p>
+            <p className="text-[10px] text-[#5a7184]">payloads</p>
           </button>
         ))}
       </div>
@@ -161,8 +161,8 @@ export default function FuzzerPage() {
       {/* Results */}
       {state === "running" && (
         <div className="flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 className="h-8 w-8 text-accent animate-spin" />
-          <p className="text-sm text-gray-400">
+          <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+          <p className="text-sm text-[#5a7184]">
             Running fuzz tests against guardrails...
           </p>
         </div>
@@ -171,31 +171,31 @@ export default function FuzzerPage() {
       {state === "complete" && results.length > 0 && (
         <>
           {/* Summary */}
-          <div className="flex items-center gap-6 rounded-lg border border-surface-300 bg-surface-100 px-6 py-4">
+          <div className="flex items-center gap-6 rounded-lg border border-blue-100 bg-white px-6 py-4">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-emerald-400" />
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
               <div>
-                <span className="text-lg font-bold text-white">{blocked}</span>
-                <span className="ml-1 text-xs text-gray-400">blocked</span>
+                <span className="text-lg font-bold text-[#0f2137]">{blocked}</span>
+                <span className="ml-1 text-xs text-[#5a7184]">blocked</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-400" />
+              <XCircle className="h-5 w-5 text-red-600" />
               <div>
-                <span className="text-lg font-bold text-white">{bypassed}</span>
-                <span className="ml-1 text-xs text-gray-400">bypassed</span>
+                <span className="text-lg font-bold text-[#0f2137]">{bypassed}</span>
+                <span className="ml-1 text-xs text-[#5a7184]">bypassed</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
               <div>
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-bold text-[#0f2137]">
                   {results.length > 0
                     ? ((blocked / results.length) * 100).toFixed(1)
                     : 0}
                   %
                 </span>
-                <span className="ml-1 text-xs text-gray-400">
+                <span className="ml-1 text-xs text-[#5a7184]">
                   detection rate
                 </span>
               </div>
@@ -207,7 +207,7 @@ export default function FuzzerPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-surface-300 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <tr className="border-b border-blue-100 text-left text-xs font-medium uppercase tracking-wider text-[#5a7184]">
                     <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Payload</th>
                     <th className="px-4 py-3">Rule</th>
@@ -217,31 +217,31 @@ export default function FuzzerPage() {
                     <th className="px-4 py-3">Severity</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-300">
+                <tbody className="divide-y divide-blue-50">
                   {displayResults.map((r) => (
                     <tr
                       key={r.id}
                       className={`transition-colors ${
                         r.decision === "allowed"
-                          ? "bg-red-500/5"
-                          : "hover:bg-surface-200/60"
+                          ? "bg-red-50/50"
+                          : "hover:bg-blue-50/50/60"
                       }`}
                     >
                       <td className="whitespace-nowrap px-4 py-3">
-                        <span className="rounded bg-surface-300 px-1.5 py-0.5 text-xs text-gray-300">
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-[#1a2b3c]">
                           {r.category}
                         </span>
                       </td>
-                      <td className="max-w-xs truncate px-4 py-3 font-mono text-xs text-gray-400">
+                      <td className="max-w-xs truncate px-4 py-3 font-mono text-xs text-[#5a7184]">
                         {r.payload}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-gray-300">
+                      <td className="whitespace-nowrap px-4 py-3 text-[#1a2b3c]">
                         {r.rule}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-400">
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#5a7184]">
                         {(r.confidence * 100).toFixed(0)}%
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-400">
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#5a7184]">
                         {r.latency_ms}ms
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -260,8 +260,8 @@ export default function FuzzerPage() {
       )}
 
       {state === "idle" && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-500">
-          <Bug className="h-12 w-12 text-gray-700" />
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-[#5a7184]">
+          <Bug className="h-12 w-12 text-[#5a7184]" />
           <p className="text-sm">
             Configure and run a fuzz test to evaluate your guardrails.
           </p>

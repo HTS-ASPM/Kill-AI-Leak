@@ -172,10 +172,10 @@ function getRiskLevel(score: number): string {
 }
 
 function getRiskColor(score: number): string {
-  if (score >= 0.8) return "text-red-400";
-  if (score >= 0.6) return "text-orange-400";
-  if (score >= 0.3) return "text-yellow-400";
-  return "text-emerald-400";
+  if (score >= 0.8) return "text-red-600";
+  if (score >= 0.6) return "text-orange-600";
+  if (score >= 0.3) return "text-amber-600";
+  return "text-emerald-600";
 }
 
 function getRiskBar(score: number): string {
@@ -272,10 +272,10 @@ export default function InventoryPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-[#0f2137]">
             AI Service Inventory (AIBOM)
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-[#5a7184]">
             {services.length} services discovered across{" "}
             {namespaces.length} namespaces
           </p>
@@ -290,7 +290,7 @@ export default function InventoryPage() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a7184]" />
           <input
             type="text"
             placeholder="Search services, namespaces, providers..."
@@ -314,7 +314,7 @@ export default function InventoryPage() {
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         {/* Provider */}
@@ -331,7 +331,7 @@ export default function InventoryPage() {
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         {/* Risk Level */}
@@ -347,12 +347,12 @@ export default function InventoryPage() {
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
 
         {activeFilters > 0 && (
           <button
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-1 text-xs text-[#5a7184] hover:text-[#1a2b3c]"
             onClick={() => {
               setNsFilter("");
               setProviderFilter("");
@@ -364,7 +364,7 @@ export default function InventoryPage() {
           </button>
         )}
 
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5 text-xs text-[#5a7184]">
           <Filter className="h-3.5 w-3.5" />
           {filtered.length} of {services.length}
         </div>
@@ -375,7 +375,7 @@ export default function InventoryPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-surface-300 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-blue-100 text-left text-xs font-medium uppercase tracking-wider text-[#5a7184]">
                 <th className="px-4 py-3">Service Name</th>
                 <th className="px-4 py-3">Namespace</th>
                 <th className="px-4 py-3">Provider(s)</th>
@@ -388,7 +388,7 @@ export default function InventoryPage() {
                 <th className="px-4 py-3">Gateway</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-300">
+            <tbody className="divide-y divide-blue-50">
               {filtered.map((svc) => {
                 const totalCalls = svc.providers.reduce(
                   (a, p) => a + p.call_count_7d,
@@ -408,23 +408,23 @@ export default function InventoryPage() {
                 return (
                   <tr
                     key={svc.id}
-                    className="group cursor-pointer transition-colors hover:bg-surface-200/60"
+                    className="group cursor-pointer transition-colors hover:bg-blue-50/50/60"
                     onClick={() => setSelectedService(svc)}
                   >
                     <td className="whitespace-nowrap px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-200">
+                        <span className="font-medium text-[#1a2b3c]">
                           {svc.name}
                         </span>
                         {shadow && (
-                          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-400 ring-1 ring-inset ring-red-500/30">
+                          <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-600 ring-1 ring-inset ring-red-200">
                             Shadow
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-400">
-                      <span className="rounded bg-surface-300 px-1.5 py-0.5 font-mono text-xs">
+                    <td className="whitespace-nowrap px-4 py-3 text-[#5a7184]">
+                      <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs">
                         {svc.namespace}
                       </span>
                     </td>
@@ -433,42 +433,42 @@ export default function InventoryPage() {
                         {svc.providers.map((p) => (
                           <span
                             key={p.provider}
-                            className="rounded bg-cyan-500/10 px-1.5 py-0.5 text-xs text-cyan-400"
+                            className="rounded bg-cyan-50 px-1.5 py-0.5 text-xs text-cyan-600"
                           >
                             {p.provider}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-400">
+                    <td className="px-4 py-3 text-[#5a7184]">
                       <div className="flex flex-wrap gap-1">
                         {allModels.slice(0, 2).map((m) => (
                           <span
                             key={m}
-                            className="rounded bg-surface-300 px-1.5 py-0.5 font-mono text-[11px]"
+                            className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[11px]"
                           >
                             {m}
                           </span>
                         ))}
                         {allModels.length > 2 && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-[#5a7184]">
                             +{allModels.length - 2}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-gray-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-[#1a2b3c]">
                       {formatNumber(totalCalls)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-gray-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-[#1a2b3c]">
                       {formatBytes(totalData)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-gray-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-[#1a2b3c]">
                       ${formatNumber(totalCost)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-14 rounded-full bg-surface-300">
+                        <div className="h-1.5 w-14 rounded-full bg-blue-50">
                           <div
                             className={`h-1.5 rounded-full ${getRiskBar(svc.risk_score)}`}
                             style={{
@@ -502,7 +502,7 @@ export default function InventoryPage() {
           </table>
 
           {filtered.length === 0 && (
-            <div className="flex items-center justify-center py-16 text-gray-500">
+            <div className="flex items-center justify-center py-16 text-[#5a7184]">
               No services match the current filters.
             </div>
           )}
@@ -516,28 +516,28 @@ export default function InventoryPage() {
           onClick={() => setSelectedService(null)}
         >
           <div
-            className="h-full w-full max-w-lg overflow-y-auto border-l border-surface-300 bg-surface-100 p-6 shadow-2xl animate-slide-in"
+            className="h-full w-full max-w-lg overflow-y-auto border-l border-blue-100 bg-white p-6 shadow-2xl animate-slide-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-white">
+                  <h2 className="text-lg font-bold text-[#0f2137]">
                     {selectedService.name}
                   </h2>
                   {isShadow(selectedService) && (
-                    <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-400 ring-1 ring-inset ring-red-500/30">
+                    <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-600 ring-1 ring-inset ring-red-200">
                       Shadow
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 font-mono text-xs text-gray-500">
+                <p className="mt-0.5 font-mono text-xs text-[#5a7184]">
                   {selectedService.id}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedService(null)}
-                className="rounded-lg p-1.5 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1.5 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -546,7 +546,7 @@ export default function InventoryPage() {
             <div className="mt-6 space-y-6">
               {/* Overview */}
               <section>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                   Overview
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -561,11 +561,11 @@ export default function InventoryPage() {
 
               {/* Risk */}
               <section>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                   Risk Assessment
                 </h3>
                 <div className="flex items-center gap-3">
-                  <div className="h-2 flex-1 rounded-full bg-surface-300">
+                  <div className="h-2 flex-1 rounded-full bg-blue-50">
                     <div
                       className={`h-2 rounded-full ${getRiskBar(selectedService.risk_score)}`}
                       style={{ width: `${Math.round(selectedService.risk_score * 100)}%` }}
@@ -579,20 +579,20 @@ export default function InventoryPage() {
 
               {/* Providers */}
               <section>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                   Provider Usage (7d)
                 </h3>
                 <div className="space-y-3">
                   {selectedService.providers.map((p) => (
                     <div
                       key={p.provider}
-                      className="rounded-lg border border-surface-300 bg-surface-200 p-3"
+                      className="rounded-lg border border-blue-100 bg-blue-50/50 p-3"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-cyan-400">
+                        <span className="font-medium text-cyan-600">
                           {p.provider}
                         </span>
-                        <span className="font-mono text-xs text-gray-400">
+                        <span className="font-mono text-xs text-[#5a7184]">
                           ${formatNumber(p.est_cost_7d_usd)}
                         </span>
                       </div>
@@ -600,13 +600,13 @@ export default function InventoryPage() {
                         {p.models.map((m) => (
                           <span
                             key={m}
-                            className="rounded bg-surface-300 px-1.5 py-0.5 font-mono text-[11px] text-gray-400"
+                            className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] text-[#5a7184]"
                           >
                             {m}
                           </span>
                         ))}
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-[#5a7184]">
                         <span>{formatNumber(p.call_count_7d)} calls</span>
                         <span>{formatNumber(p.tokens_used_7d)} tokens</span>
                         <span>{formatBytes(p.data_transferred_7d)}</span>
@@ -619,23 +619,23 @@ export default function InventoryPage() {
               {/* Databases */}
               {selectedService.databases && selectedService.databases.length > 0 && (
                 <section>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#5a7184]">
                     Database Connections
                   </h3>
                   <div className="space-y-2">
                     {selectedService.databases.map((db, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-3 rounded-lg border border-surface-300 bg-surface-200 px-3 py-2"
+                        className="flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2"
                       >
-                        <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-xs text-purple-400">
+                        <span className="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-600">
                           {db.type}
                         </span>
-                        <span className="font-mono text-xs text-gray-400">
+                        <span className="font-mono text-xs text-[#5a7184]">
                           {db.host}
                         </span>
                         {db.database && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-[#5a7184]">
                             / {db.database}
                           </span>
                         )}
@@ -646,7 +646,7 @@ export default function InventoryPage() {
               )}
 
               {/* Actions */}
-              <section className="flex gap-3 border-t border-surface-300 pt-4">
+              <section className="flex gap-3 border-t border-blue-100 pt-4">
                 <button className="btn-primary text-xs">
                   <Shield className="h-3.5 w-3.5" /> Apply Policy
                 </button>
@@ -665,10 +665,10 @@ export default function InventoryPage() {
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="text-[11px] font-medium text-gray-500 uppercase">
+      <span className="text-[11px] font-medium text-[#5a7184] uppercase">
         {label}
       </span>
-      <p className="mt-0.5 text-sm text-gray-300">{value}</p>
+      <p className="mt-0.5 text-sm text-[#1a2b3c]">{value}</p>
     </div>
   );
 }

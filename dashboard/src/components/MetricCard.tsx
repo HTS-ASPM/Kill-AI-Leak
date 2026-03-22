@@ -18,24 +18,24 @@ interface MetricCardProps {
 
 const accentMap = {
   green: {
-    icon: "text-emerald-400 bg-emerald-500/10",
-    border: "border-emerald-500/20",
+    icon: "text-emerald-600 bg-emerald-50",
+    border: "border-emerald-100",
   },
   cyan: {
-    icon: "text-cyan-400 bg-cyan-500/10",
-    border: "border-cyan-500/20",
+    icon: "text-cyan-600 bg-cyan-50",
+    border: "border-cyan-100",
   },
   red: {
-    icon: "text-red-400 bg-red-500/10",
-    border: "border-red-500/20",
+    icon: "text-red-600 bg-red-50",
+    border: "border-red-100",
   },
   yellow: {
-    icon: "text-yellow-400 bg-yellow-500/10",
-    border: "border-yellow-500/20",
+    icon: "text-amber-600 bg-amber-50",
+    border: "border-amber-100",
   },
   blue: {
-    icon: "text-blue-400 bg-blue-500/10",
-    border: "border-blue-500/20",
+    icon: "text-blue-600 bg-blue-50",
+    border: "border-blue-100",
   },
 };
 
@@ -53,32 +53,32 @@ export default function MetricCard({
   return (
     <div
       className={clsx(
-        "relative overflow-hidden rounded-xl border bg-surface-100 p-5",
+        "relative overflow-hidden rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow",
         accent.border,
         className,
       )}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-400">{title}</p>
-          <p className="text-2xl font-bold tracking-tight text-white">
+          <p className="text-sm font-medium text-[#5a7184]">{title}</p>
+          <p className="text-2xl font-bold tracking-tight text-[#0f2137]">
             {value}
           </p>
           {subtitle && (
-            <p className="text-xs text-gray-500">{subtitle}</p>
+            <p className="text-xs text-[#5a7184]">{subtitle}</p>
           )}
           {trend && (
             <div className="flex items-center gap-1 text-xs">
               <span
                 className={clsx(
                   "font-medium",
-                  trend.positive ? "text-emerald-400" : "text-red-400",
+                  trend.positive ? "text-emerald-600" : "text-red-600",
                 )}
               >
                 {trend.positive ? "+" : ""}
                 {trend.value}%
               </span>
-              <span className="text-gray-500">vs last period</span>
+              <span className="text-[#5a7184]">vs last period</span>
             </div>
           )}
         </div>

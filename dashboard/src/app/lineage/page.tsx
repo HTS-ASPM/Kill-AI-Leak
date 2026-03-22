@@ -57,9 +57,9 @@ const edges: LineageEdge[] = [
 // ---------------------------------------------------------------------------
 
 const riskColors = {
-  safe: { fill: "#065f46", stroke: "#06d6a0", text: "#6ee7b7" },
-  warning: { fill: "#713f12", stroke: "#eab308", text: "#fde68a" },
-  critical: { fill: "#7f1d1d", stroke: "#ef4444", text: "#fca5a5" },
+  safe: { fill: "#ecfdf5", stroke: "#10b981", text: "#065f46" },
+  warning: { fill: "#fffbeb", stroke: "#f59e0b", text: "#92400e" },
+  critical: { fill: "#fef2f2", stroke: "#ef4444", text: "#991b1b" },
 };
 
 const nodeTypeIcons: Record<string, typeof Database> = {
@@ -113,36 +113,36 @@ export default function LineagePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Data Lineage</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-[#0f2137]">Data Lineage</h1>
+          <p className="mt-1 text-sm text-[#5a7184]">
             Visual data flow: Database &rarr; Service &rarr; LLM Provider
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-[#5a7184] cursor-pointer">
           <input
             type="checkbox"
             checked={highlightPII}
             onChange={(e) => setHighlightPII(e.target.checked)}
-            className="h-4 w-4 rounded border-surface-300 bg-surface-200 text-accent focus:ring-accent/30"
+            className="h-4 w-4 rounded border-blue-100 bg-blue-50/50 text-blue-600 focus:ring-blue-200"
           />
-          <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
           Highlight PII paths
         </label>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-6 rounded-lg border border-surface-300 bg-surface-100 px-5 py-3 text-xs text-gray-400">
-        <span className="font-medium text-gray-300">Legend:</span>
+      <div className="flex flex-wrap items-center gap-6 rounded-lg border border-blue-100 bg-white px-5 py-3 text-xs text-[#5a7184]">
+        <span className="font-medium text-[#1a2b3c]">Legend:</span>
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#06d6a0", backgroundColor: "#065f46" }} />
+          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#10b981", backgroundColor: "#ecfdf5" }} />
           Safe
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#eab308", backgroundColor: "#713f12" }} />
+          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#f59e0b", backgroundColor: "#fffbeb" }} />
           Warning
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#ef4444", backgroundColor: "#7f1d1d" }} />
+          <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: "#ef4444", backgroundColor: "#fef2f2" }} />
           Critical
         </span>
         <span className="flex items-center gap-1.5">
@@ -156,7 +156,7 @@ export default function LineagePage() {
       </div>
 
       {/* Graph */}
-      <div className="overflow-auto rounded-xl border border-surface-300 bg-surface-100">
+      <div className="overflow-auto rounded-xl border border-blue-100 bg-white">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="min-h-[500px] w-full"
@@ -173,7 +173,7 @@ export default function LineagePage() {
               markerHeight="6"
               orient="auto"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a7184" />
             </marker>
             <marker
               id="arrow-pii"
@@ -218,7 +218,7 @@ export default function LineagePage() {
                 <path
                   d={getEdgePath(edge)}
                   fill="none"
-                  stroke={shouldHighlight ? "#ef4444" : "#334155"}
+                  stroke={shouldHighlight ? "#ef4444" : "#c7d4e2"}
                   strokeWidth={shouldHighlight ? 2 : 1.5}
                   strokeDasharray={isPII ? "6 3" : undefined}
                   markerEnd={
@@ -270,7 +270,7 @@ export default function LineagePage() {
                 <text
                   x={node.x + 12}
                   y={node.y + 36}
-                  fill="#94a3b8"
+                  fill="#5a7184"
                   className="text-[9px]"
                 >
                   {node.type.replace("_", " ")}
@@ -297,7 +297,7 @@ export default function LineagePage() {
           onClick={() => setSelectedNode(null)}
         >
           <div
-            className="mx-4 w-full max-w-md rounded-xl border border-surface-300 bg-surface-100 p-6 shadow-2xl animate-fade-in"
+            className="mx-4 w-full max-w-md rounded-xl border border-blue-100 bg-white p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between">
@@ -321,10 +321,10 @@ export default function LineagePage() {
                   })()}
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-lg font-semibold text-[#0f2137]">
                     {selectedNode.label}
                   </h3>
-                  <p className="text-xs text-gray-500 capitalize">
+                  <p className="text-xs text-[#5a7184] capitalize">
                     {selectedNode.type.replace("_", " ")} &middot;{" "}
                     <span
                       style={{
@@ -338,7 +338,7 @@ export default function LineagePage() {
               </div>
               <button
                 onClick={() => setSelectedNode(null)}
-                className="rounded-lg p-1 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -348,14 +348,14 @@ export default function LineagePage() {
               <div className="mt-5 space-y-3">
                 {Object.entries(selectedNode.details).map(([key, val]) => (
                   <div key={key}>
-                    <span className="text-[11px] font-medium uppercase text-gray-500">
+                    <span className="text-[11px] font-medium uppercase text-[#5a7184]">
                       {key.replace("_", " ")}
                     </span>
                     <p
                       className={`mt-0.5 text-sm ${
                         key === "pii_exposure" || key === "shadow"
-                          ? "text-red-400 font-medium"
-                          : "text-gray-300"
+                          ? "text-red-600 font-medium"
+                          : "text-[#1a2b3c]"
                       }`}
                     >
                       {val}
@@ -367,7 +367,7 @@ export default function LineagePage() {
 
             {/* Connections */}
             <div className="mt-5">
-              <span className="text-[11px] font-medium uppercase text-gray-500">
+              <span className="text-[11px] font-medium uppercase text-[#5a7184]">
                 Connections
               </span>
               <div className="mt-2 space-y-1.5">
@@ -387,22 +387,22 @@ export default function LineagePage() {
                     return (
                       <div
                         key={e.id}
-                        className="flex items-center justify-between rounded-lg bg-surface-200 px-3 py-2"
+                        className="flex items-center justify-between rounded-lg bg-blue-50/50 px-3 py-2"
                       >
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-[#5a7184]">
                           {direction}{" "}
-                          <span className="text-gray-200 font-medium">
+                          <span className="text-[#1a2b3c] font-medium">
                             {other?.label}
                           </span>
                         </span>
                         <div className="flex items-center gap-2">
                           {e.has_pii && (
-                            <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-400 ring-1 ring-inset ring-red-500/30">
+                            <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 ring-1 ring-inset ring-red-200">
                               PII
                             </span>
                           )}
                           {e.data_volume && (
-                            <span className="font-mono text-[10px] text-gray-500">
+                            <span className="font-mono text-[10px] text-[#5a7184]">
                               {e.data_volume}
                             </span>
                           )}
@@ -448,7 +448,7 @@ function EdgeLabel({
       x={midX}
       y={midY - 6}
       textAnchor="middle"
-      fill={isPII ? "#fca5a5" : "#64748b"}
+      fill={isPII ? "#fca5a5" : "#5a7184"}
       className="text-[9px]"
     >
       {edge.label}

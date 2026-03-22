@@ -40,8 +40,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-[#0f2137]">Settings</h1>
+        <p className="mt-1 text-sm text-[#5a7184]">
           Platform configuration and integrations
         </p>
       </div>
@@ -55,8 +55,8 @@ export default function SettingsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
                 activeTab === tab.id
-                  ? "bg-accent/10 text-accent font-medium"
-                  : "text-gray-400 hover:bg-surface-200 hover:text-gray-200"
+                  ? "bg-blue-50 text-blue-600 font-medium"
+                  : "text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c]"
               }`}
             >
               <tab.icon className="h-4 w-4" />
@@ -69,10 +69,10 @@ export default function SettingsPage() {
         <div className="flex-1">
           {activeTab === "general" && (
             <div className="card space-y-6">
-              <h2 className="text-sm font-semibold text-white">General Settings</h2>
+              <h2 className="text-sm font-semibold text-[#0f2137]">General Settings</h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     Organization Name
                   </label>
                   <input
@@ -83,7 +83,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     Environment
                   </label>
                   <select
@@ -97,7 +97,7 @@ export default function SettingsPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end border-t border-surface-300 pt-4">
+              <div className="flex justify-end border-t border-blue-100 pt-4">
                 <button className="btn-primary">
                   <Save className="h-4 w-4" />
                   Save Changes
@@ -108,10 +108,10 @@ export default function SettingsPage() {
 
           {activeTab === "api" && (
             <div className="card space-y-6">
-              <h2 className="text-sm font-semibold text-white">API & Authentication</h2>
+              <h2 className="text-sm font-semibold text-[#0f2137]">API & Authentication</h2>
               <div className="space-y-5">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     API Base URL
                   </label>
                   <input
@@ -122,7 +122,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     API Token
                   </label>
                   <div className="relative">
@@ -133,7 +133,7 @@ export default function SettingsPage() {
                       readOnly
                     />
                     <button
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#5a7184] hover:text-[#1a2b3c]"
                       onClick={() => setShowToken(!showToken)}
                     >
                       {showToken ? (
@@ -143,7 +143,7 @@ export default function SettingsPage() {
                       )}
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-[#5a7184]">
                     Used for authenticating dashboard requests to the API server.
                   </p>
                 </div>
@@ -157,10 +157,10 @@ export default function SettingsPage() {
 
           {activeTab === "notifications" && (
             <div className="card space-y-6">
-              <h2 className="text-sm font-semibold text-white">Notification Settings</h2>
+              <h2 className="text-sm font-semibold text-[#0f2137]">Notification Settings</h2>
               <div className="space-y-5">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     Slack Webhook URL
                   </label>
                   <input
@@ -171,7 +171,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                  <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                     Email Alerts
                   </label>
                   <input
@@ -182,7 +182,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-3 block text-xs font-medium text-gray-400">
+                  <label className="mb-3 block text-xs font-medium text-[#5a7184]">
                     Alert Thresholds
                   </label>
                   <div className="space-y-3">
@@ -190,12 +190,12 @@ export default function SettingsPage() {
                       (label) => (
                         <label
                           key={label}
-                          className="flex items-center gap-3 text-sm text-gray-300"
+                          className="flex items-center gap-3 text-sm text-[#1a2b3c]"
                         >
                           <input
                             type="checkbox"
                             defaultChecked
-                            className="h-4 w-4 rounded border-surface-300 bg-surface-200 text-accent focus:ring-accent/30"
+                            className="h-4 w-4 rounded border-blue-100 bg-blue-50/50 text-blue-600 focus:ring-blue-200"
                           />
                           {label}
                         </label>
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end border-t border-surface-300 pt-4">
+              <div className="flex justify-end border-t border-blue-100 pt-4">
                 <button className="btn-primary">
                   <Save className="h-4 w-4" />
                   Save Changes
@@ -216,7 +216,7 @@ export default function SettingsPage() {
           {activeTab === "team" && (
             <div className="card space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">Team Members</h2>
+                <h2 className="text-sm font-semibold text-[#0f2137]">Team Members</h2>
                 <button className="btn-secondary text-xs">
                   <Plus className="h-3.5 w-3.5" />
                   Invite
@@ -231,27 +231,27 @@ export default function SettingsPage() {
                 ].map((member) => (
                   <div
                     key={member.email}
-                    className="flex items-center justify-between rounded-lg border border-surface-300 bg-surface-200 px-4 py-3"
+                    className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-accent text-xs font-bold">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/20 text-blue-600 text-xs font-bold">
                         {member.name
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-200">
+                        <p className="text-sm font-medium text-[#1a2b3c]">
                           {member.name}
                         </p>
-                        <p className="text-xs text-gray-500">{member.email}</p>
+                        <p className="text-xs text-[#5a7184]">{member.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="rounded bg-surface-300 px-2 py-0.5 text-xs text-gray-400">
+                      <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-[#5a7184]">
                         {member.role}
                       </span>
-                      <button className="text-gray-600 hover:text-red-400 transition-colors">
+                      <button className="text-[#5a7184] hover:text-red-600 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -263,7 +263,7 @@ export default function SettingsPage() {
 
           {activeTab === "integrations" && (
             <div className="card space-y-6">
-              <h2 className="text-sm font-semibold text-white">Integrations</h2>
+              <h2 className="text-sm font-semibold text-[#0f2137]">Integrations</h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
                   { name: "Kubernetes", status: "connected", desc: "eBPF sensor deployed in 3 clusters" },
@@ -275,22 +275,22 @@ export default function SettingsPage() {
                 ].map((int) => (
                   <div
                     key={int.name}
-                    className="flex items-center justify-between rounded-lg border border-surface-300 bg-surface-200 p-4"
+                    className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50/50 p-4"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-200">
+                        <span className="text-sm font-medium text-[#1a2b3c]">
                           {int.name}
                         </span>
                         <span
                           className={`h-2 w-2 rounded-full ${
                             int.status === "connected"
-                              ? "bg-emerald-400"
-                              : "bg-gray-600"
+                              ? "bg-emerald-500"
+                              : "bg-gray-300"
                           }`}
                         />
                       </div>
-                      <p className="mt-0.5 text-xs text-gray-500">
+                      <p className="mt-0.5 text-xs text-[#5a7184]">
                         {int.desc}
                       </p>
                     </div>
@@ -305,11 +305,11 @@ export default function SettingsPage() {
 
           {activeTab === "data" && (
             <div className="card space-y-6">
-              <h2 className="text-sm font-semibold text-white">Data Retention</h2>
+              <h2 className="text-sm font-semibold text-[#0f2137]">Data Retention</h2>
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                    <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                       Event Retention
                     </label>
                     <select className="select w-full">
@@ -321,7 +321,7 @@ export default function SettingsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                    <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                       Prompt/Response Storage
                     </label>
                     <select className="select w-full">
@@ -332,15 +332,15 @@ export default function SettingsPage() {
                     </select>
                   </div>
                 </div>
-                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
-                  <p className="text-xs text-yellow-400">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                  <p className="text-xs text-amber-600">
                     Prompt and response text is stored encrypted at rest and automatically
                     purged after the retention period. Only cryptographic hashes are retained
                     for audit purposes.
                   </p>
                 </div>
               </div>
-              <div className="flex justify-end border-t border-surface-300 pt-4">
+              <div className="flex justify-end border-t border-blue-100 pt-4">
                 <button className="btn-primary">
                   <Save className="h-4 w-4" />
                   Save Changes

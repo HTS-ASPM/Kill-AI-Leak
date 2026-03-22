@@ -43,12 +43,12 @@ const stageLabels: Record<GuardrailStage, string> = {
 };
 
 const stageBg: Record<GuardrailStage, string> = {
-  pre_input: "bg-blue-500/10 text-blue-400 ring-blue-500/20",
-  input: "bg-cyan-500/10 text-cyan-400 ring-cyan-500/20",
-  routing: "bg-purple-500/10 text-purple-400 ring-purple-500/20",
-  output: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20",
-  post_output: "bg-yellow-500/10 text-yellow-400 ring-yellow-500/20",
-  behavioral: "bg-orange-500/10 text-orange-400 ring-orange-500/20",
+  pre_input: "bg-blue-50 text-blue-600 ring-blue-500/20",
+  input: "bg-cyan-50 text-cyan-600 ring-cyan-200",
+  routing: "bg-purple-50 text-purple-600 ring-purple-500/20",
+  output: "bg-emerald-50 text-emerald-600 ring-emerald-500/20",
+  post_output: "bg-amber-50 text-amber-600 ring-yellow-500/20",
+  behavioral: "bg-orange-50 text-orange-600 ring-orange-500/20",
 };
 
 // ---------------------------------------------------------------------------
@@ -149,15 +149,15 @@ export default function GuardrailsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-white">Guardrails</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-[#0f2137]">Guardrails</h1>
+        <p className="mt-1 text-sm text-[#5a7184]">
           {enabledCount} of {guardrails.length} rules active across the
           security pipeline
         </p>
       </div>
 
       {/* Pipeline stage overview */}
-      <div className="flex gap-1 overflow-x-auto rounded-lg border border-surface-300 bg-surface-100 p-2">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-blue-100 bg-white p-2">
         {stageOrder.map((stage) => {
           const count = guardrails.filter(
             (r) => r.stage === stage && r.enabled,
@@ -170,15 +170,15 @@ export default function GuardrailsPage() {
               }
               className={`flex flex-1 min-w-[100px] flex-col items-center gap-1 rounded-md px-3 py-2.5 transition-colors ${
                 stageFilter === stage
-                  ? "bg-surface-300"
-                  : "hover:bg-surface-200"
+                  ? "bg-blue-50"
+                  : "hover:bg-blue-50/50"
               }`}
             >
               <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${stageBg[stage]}`}>
                 {stageLabels[stage]}
               </span>
-              <span className="text-lg font-bold text-white">{count}</span>
-              <span className="text-[10px] text-gray-500">active</span>
+              <span className="text-lg font-bold text-[#0f2137]">{count}</span>
+              <span className="text-[10px] text-[#5a7184]">active</span>
             </button>
           );
         })}
@@ -187,7 +187,7 @@ export default function GuardrailsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a7184]" />
           <input
             type="text"
             placeholder="Search rules..."
@@ -208,7 +208,7 @@ export default function GuardrailsPage() {
             <option value="discover">Discover</option>
             <option value="off">Off</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
         </div>
       </div>
 
@@ -219,8 +219,8 @@ export default function GuardrailsPage() {
             key={rule.id}
             className={`flex items-center gap-4 rounded-xl border p-4 transition-colors ${
               rule.enabled
-                ? "border-surface-300 bg-surface-100"
-                : "border-surface-300/50 bg-surface-100/50 opacity-60"
+                ? "border-blue-100 bg-white"
+                : "border-blue-100/50 bg-white/50 opacity-60"
             }`}
           >
             {/* Toggle */}
@@ -230,16 +230,16 @@ export default function GuardrailsPage() {
               title={rule.enabled ? "Disable rule" : "Enable rule"}
             >
               {rule.enabled ? (
-                <ToggleRight className="h-6 w-6 text-accent" />
+                <ToggleRight className="h-6 w-6 text-blue-600" />
               ) : (
-                <ToggleLeft className="h-6 w-6 text-gray-600" />
+                <ToggleLeft className="h-6 w-6 text-[#5a7184]" />
               )}
             </button>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-200 truncate">
+                <span className="text-sm font-semibold text-[#1a2b3c] truncate">
                   {rule.name}
                 </span>
                 <span
@@ -247,17 +247,17 @@ export default function GuardrailsPage() {
                 >
                   {stageLabels[rule.stage]}
                 </span>
-                <span className="rounded bg-surface-300 px-1.5 py-0.5 text-[10px] text-gray-400">
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-[#5a7184]">
                   {rule.category}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-gray-500 truncate">
+              <p className="mt-0.5 text-xs text-[#5a7184] truncate">
                 {rule.description}
               </p>
             </div>
 
             {/* Priority */}
-            <span className="shrink-0 font-mono text-[10px] text-gray-600">
+            <span className="shrink-0 font-mono text-[10px] text-[#5a7184]">
               P{rule.priority}
             </span>
 
@@ -273,7 +273,7 @@ export default function GuardrailsPage() {
         ))}
 
         {filtered.length === 0 && (
-          <div className="flex items-center justify-center py-16 text-gray-500">
+          <div className="flex items-center justify-center py-16 text-[#5a7184]">
             No guardrail rules match the current filters.
           </div>
         )}

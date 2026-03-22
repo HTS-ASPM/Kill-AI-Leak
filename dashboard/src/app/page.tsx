@@ -212,9 +212,9 @@ function formatNumber(n: number): string {
 }
 
 function getRiskColor(score: number): string {
-  if (score >= 0.7) return "text-red-400";
-  if (score >= 0.4) return "text-yellow-400";
-  return "text-emerald-400";
+  if (score >= 0.7) return "text-red-600";
+  if (score >= 0.4) return "text-amber-600";
+  return "text-emerald-600";
 }
 
 function getRiskBar(score: number): string {
@@ -269,8 +269,8 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-xl font-bold text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-[#0f2137]">Dashboard</h1>
+        <p className="mt-1 text-sm text-[#5a7184]">
           AI security posture overview
         </p>
       </div>
@@ -323,7 +323,7 @@ export default function DashboardPage() {
         <div className="card lg:col-span-2">
           <div className="card-header">
             <h2 className="card-title">Threat Activity (7 days)</h2>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-[#5a7184]">
               Blocked vs Allowed requests
             </span>
           </div>
@@ -344,12 +344,12 @@ export default function DashboardPage() {
         {/* Recent alerts */}
         <div className="table-wrapper xl:col-span-3">
           <div className="flex items-center justify-between px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-200">
+            <h2 className="text-sm font-semibold text-[#0f2137]">
               Recent Alerts
             </h2>
             <a
               href="/events"
-              className="flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-400 transition-colors"
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
             >
               View all <ArrowUpRight className="h-3 w-3" />
             </a>
@@ -364,45 +364,45 @@ export default function DashboardPage() {
         {/* Top services */}
         <div className="table-wrapper xl:col-span-2">
           <div className="px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-200">
+            <h2 className="text-sm font-semibold text-[#0f2137]">
               Top Services by Usage
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-surface-300 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-blue-100 text-left text-xs font-medium uppercase tracking-wider text-[#5a7184]">
                   <th className="px-5 py-3">Service</th>
                   <th className="px-5 py-3 text-right">Calls (7d)</th>
                   <th className="px-5 py-3 text-right">Cost</th>
                   <th className="px-5 py-3">Risk</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-300">
+              <tbody className="divide-y divide-blue-50">
                 {topServices.map((svc) => (
                   <tr
                     key={svc.name}
-                    className="hover:bg-surface-200/60 transition-colors"
+                    className="hover:bg-blue-50/80 transition-colors"
                   >
                     <td className="px-5 py-3">
                       <div className="flex flex-col">
-                        <span className="font-medium text-gray-200">
+                        <span className="font-medium text-[#1a2b3c]">
                           {svc.name}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-[#5a7184]">
                           {svc.namespace}
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right text-gray-300 font-mono text-xs">
+                    <td className="whitespace-nowrap px-5 py-3 text-right text-[#1a2b3c] font-mono text-xs">
                       {formatNumber(svc.calls_7d)}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right text-gray-300 font-mono text-xs">
+                    <td className="whitespace-nowrap px-5 py-3 text-right text-[#1a2b3c] font-mono text-xs">
                       ${formatNumber(svc.cost_7d_usd)}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 rounded-full bg-surface-300">
+                        <div className="h-1.5 w-16 rounded-full bg-blue-100">
                           <div
                             className={`h-1.5 rounded-full ${getRiskBar(svc.risk_score)}`}
                             style={{
@@ -432,21 +432,21 @@ export default function DashboardPage() {
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="mx-4 max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-surface-300 bg-surface-100 p-6 shadow-2xl animate-fade-in"
+            className="mx-4 max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-blue-100 bg-white p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-[#0f2137]">
                   Event Detail
                 </h3>
-                <p className="mt-0.5 font-mono text-xs text-gray-500">
+                <p className="mt-0.5 font-mono text-xs text-[#5a7184]">
                   {selectedEvent.id}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="rounded-lg p-1 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1 text-[#5a7184] hover:bg-blue-50 hover:text-[#1a2b3c]"
               >
                 <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -457,41 +457,41 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">Source</span>
-                  <p className="mt-0.5 font-mono text-sm text-gray-300">{selectedEvent.source}</p>
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">Source</span>
+                  <p className="mt-0.5 font-mono text-sm text-[#1a2b3c]">{selectedEvent.source}</p>
                 </div>
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">Severity</span>
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">Severity</span>
                   <div className="mt-1">
                     <SeverityBadgeInline severity={selectedEvent.severity} />
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">Actor</span>
-                  <p className="mt-0.5 text-sm text-gray-300">{selectedEvent.actor.name || selectedEvent.actor.id}</p>
-                  <p className="text-xs text-gray-500">{selectedEvent.actor.namespace} / {selectedEvent.actor.type}</p>
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">Actor</span>
+                  <p className="mt-0.5 text-sm text-[#1a2b3c]">{selectedEvent.actor.name || selectedEvent.actor.id}</p>
+                  <p className="text-xs text-[#5a7184]">{selectedEvent.actor.namespace} / {selectedEvent.actor.type}</p>
                 </div>
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">Target</span>
-                  <p className="mt-0.5 text-sm text-gray-300">{selectedEvent.target.provider || selectedEvent.target.id}</p>
-                  {selectedEvent.target.model && <p className="text-xs text-gray-500">{selectedEvent.target.model}</p>}
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">Target</span>
+                  <p className="mt-0.5 text-sm text-[#1a2b3c]">{selectedEvent.target.provider || selectedEvent.target.id}</p>
+                  {selectedEvent.target.model && <p className="text-xs text-[#5a7184]">{selectedEvent.target.model}</p>}
                 </div>
               </div>
 
               {selectedEvent.guardrails && selectedEvent.guardrails.length > 0 && (
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">Guardrails Triggered</span>
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">Guardrails Triggered</span>
                   <div className="mt-2 space-y-2">
                     {selectedEvent.guardrails.map((gr) => (
-                      <div key={gr.rule_id} className="rounded-lg border border-surface-300 bg-surface-200 p-3">
+                      <div key={gr.rule_id} className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-200">{gr.rule_name}</span>
-                          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${gr.decision === "block" ? "bg-red-500/15 text-red-400" : gr.decision === "allow" ? "bg-emerald-500/15 text-emerald-400" : "bg-yellow-500/15 text-yellow-400"}`}>
+                          <span className="text-sm font-medium text-[#1a2b3c]">{gr.rule_name}</span>
+                          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${gr.decision === "block" ? "bg-red-50 text-red-600" : gr.decision === "allow" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
                             {gr.decision}
                           </span>
                         </div>
-                        {gr.reason && <p className="mt-1 text-xs text-gray-400">{gr.reason}</p>}
-                        <div className="mt-2 flex gap-4 text-xs text-gray-500">
+                        {gr.reason && <p className="mt-1 text-xs text-[#5a7184]">{gr.reason}</p>}
+                        <div className="mt-2 flex gap-4 text-xs text-[#5a7184]">
                           <span>Stage: {gr.stage}</span>
                           <span>Confidence: {(gr.confidence * 100).toFixed(0)}%</span>
                           <span>Latency: {gr.latency_ms}ms</span>
@@ -504,10 +504,10 @@ export default function DashboardPage() {
 
               {selectedEvent.content.pii_detected && selectedEvent.content.pii_detected.length > 0 && (
                 <div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">PII Detected</span>
+                  <span className="text-xs font-medium text-[#5a7184] uppercase">PII Detected</span>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {selectedEvent.content.pii_detected.map((pii) => (
-                      <span key={pii} className="rounded bg-red-500/15 px-2 py-0.5 text-xs text-red-400 ring-1 ring-inset ring-red-500/30">
+                      <span key={pii} className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-600 ring-1 ring-inset ring-red-200">
                         {pii}
                       </span>
                     ))}
@@ -525,11 +525,11 @@ export default function DashboardPage() {
 // Inline severity badge for modal (avoids import cycle in demo)
 function SeverityBadgeInline({ severity }: { severity: string }) {
   const styles: Record<string, string> = {
-    info: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
-    low: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-    medium: "bg-yellow-500/15 text-yellow-400 ring-yellow-500/30",
-    high: "bg-orange-500/15 text-orange-400 ring-orange-500/30",
-    critical: "bg-red-500/15 text-red-400 ring-red-500/30",
+    info: "bg-blue-50 text-blue-600 ring-blue-200",
+    low: "bg-emerald-50 text-emerald-600 ring-emerald-200",
+    medium: "bg-amber-50 text-amber-600 ring-amber-200",
+    high: "bg-orange-50 text-orange-600 ring-orange-200",
+    critical: "bg-red-50 text-red-600 ring-red-200",
   };
   return (
     <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles[severity] ?? styles.info}`}>

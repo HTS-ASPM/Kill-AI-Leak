@@ -198,14 +198,14 @@ const INDICATOR_CSS = `
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  border: 1px solid #16a34a;
-  border-radius: 8px;
-  padding: 8px 14px;
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
   cursor: default;
   user-select: none;
 }
@@ -213,15 +213,15 @@ const INDICATOR_CSS = `
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #16a34a;
+  background: #ffffff;
   animation: kail-pulse 2s ease-in-out infinite;
 }
 @keyframes kail-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
-.kail-anon-label { font-weight: 600; }
-.kail-anon-count { color: #888; }
+.kail-anon-label { font-weight: 600; color: #ffffff; }
+.kail-anon-count { color: rgba(255, 255, 255, 0.75); }
 `;
 
 // ---------------------------------------------------------------------------

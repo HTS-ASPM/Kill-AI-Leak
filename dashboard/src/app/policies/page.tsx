@@ -288,8 +288,8 @@ export default function PoliciesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Policies</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-[#0f2137]">Policies</h1>
+          <p className="mt-1 text-sm text-[#5a7184]">
             AI security policy management and enforcement
           </p>
         </div>
@@ -330,7 +330,7 @@ export default function PoliciesPage() {
           return (
             <div
               key={policy.metadata.name}
-              className="rounded-xl border border-surface-300 bg-surface-100 p-5 transition-colors hover:border-surface-400"
+              className="rounded-xl border border-blue-100 bg-white p-5 transition-colors hover:border-blue-200"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
@@ -338,12 +338,12 @@ export default function PoliciesPage() {
                   <div
                     className={`mt-0.5 rounded-lg p-2.5 ${
                       policy.spec.mode === "enforce"
-                        ? "bg-emerald-500/10 text-emerald-400"
+                        ? "bg-emerald-50 text-emerald-600"
                         : policy.spec.mode === "monitor"
-                          ? "bg-yellow-500/10 text-yellow-400"
+                          ? "bg-amber-50 text-amber-600"
                           : policy.spec.mode === "discover"
-                            ? "bg-blue-500/10 text-blue-400"
-                            : "bg-gray-500/10 text-gray-500"
+                            ? "bg-blue-50 text-blue-600"
+                            : "bg-gray-50 text-[#5a7184]"
                     }`}
                   >
                     <ModeIcon className="h-5 w-5" />
@@ -351,25 +351,25 @@ export default function PoliciesPage() {
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-white">
+                      <h3 className="text-sm font-semibold text-[#0f2137]">
                         {policy.metadata.name}
                       </h3>
                       <StatusBadge status={policy.spec.mode} />
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-[#5a7184]">
                       {modeDescriptions[policy.spec.mode]}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[#5a7184]">
                       <span>
                         Scope:{" "}
-                        <span className="font-mono text-gray-300">
+                        <span className="font-mono text-[#1a2b3c]">
                           {scopeText}
                         </span>
                       </span>
                       {policy.metadata.namespace && (
                         <span>
                           Namespace:{" "}
-                          <span className="rounded bg-surface-300 px-1 py-0.5 font-mono">
+                          <span className="rounded bg-blue-50 px-1 py-0.5 font-mono">
                             {policy.metadata.namespace}
                           </span>
                         </span>
@@ -389,20 +389,20 @@ export default function PoliciesPage() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => toggleMode(policy.metadata.name)}
-                    className="rounded-lg p-2 text-gray-500 hover:bg-surface-200 hover:text-gray-300 transition-colors"
+                    className="rounded-lg p-2 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c] transition-colors"
                     title="Toggle enforcement mode"
                   >
                     <Shield className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => openEditor(policy)}
-                    className="rounded-lg p-2 text-gray-500 hover:bg-surface-200 hover:text-gray-300 transition-colors"
+                    className="rounded-lg p-2 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c] transition-colors"
                     title="Edit policy"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    className="rounded-lg p-2 text-gray-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                    className="rounded-lg p-2 text-[#5a7184] hover:bg-red-50 hover:text-red-600 transition-colors"
                     title="Delete policy"
                     onClick={async () => {
                       try {
@@ -458,18 +458,18 @@ export default function PoliciesPage() {
           onClick={() => setShowEditor(false)}
         >
           <div
-            className="mx-4 flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl border border-surface-300 bg-surface-100 shadow-2xl animate-fade-in"
+            className="mx-4 flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl border border-blue-100 bg-white shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-surface-300 px-6 py-4">
-              <h3 className="text-lg font-semibold text-white">
+            <div className="flex items-center justify-between border-b border-blue-100 px-6 py-4">
+              <h3 className="text-lg font-semibold text-[#0f2137]">
                 {editingPolicy
                   ? `Edit: ${editingPolicy}`
                   : "Create New Policy"}
               </h3>
               <button
                 onClick={() => setShowEditor(false)}
-                className="rounded-lg p-1 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -477,14 +477,14 @@ export default function PoliciesPage() {
 
             <div className="flex-1 overflow-y-auto p-6">
               <textarea
-                className="h-96 w-full rounded-lg border border-surface-300 bg-surface font-mono text-sm text-gray-300 p-4 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 resize-none"
+                className="h-96 w-full rounded-lg border border-blue-100 bg-[#f0f4f8] font-mono text-sm text-[#1a2b3c] p-4 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none"
                 value={editorContent}
                 onChange={(e) => setEditorContent(e.target.value)}
                 spellCheck={false}
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-surface-300 px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-blue-100 px-6 py-4">
               <button
                 className="btn-secondary"
                 onClick={() => setShowEditor(false)}
@@ -533,15 +533,15 @@ export default function PoliciesPage() {
           }}
         >
           <div
-            className="mx-4 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-surface-300 bg-surface-100 shadow-2xl animate-fade-in"
+            className="mx-4 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-surface-300 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-blue-100 px-6 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-[#0f2137]">
                   Policy Dry Run
                 </h3>
-                <p className="mt-0.5 text-xs text-gray-500">
+                <p className="mt-0.5 text-xs text-[#5a7184]">
                   Test a prompt against policies without forwarding to the LLM
                 </p>
               </div>
@@ -550,7 +550,7 @@ export default function PoliciesPage() {
                   setShowDryRun(false);
                   setDryRunResult(null);
                 }}
-                className="rounded-lg p-1 text-gray-500 hover:bg-surface-200 hover:text-gray-300"
+                className="rounded-lg p-1 text-[#5a7184] hover:bg-blue-50/50 hover:text-[#1a2b3c]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -559,7 +559,7 @@ export default function PoliciesPage() {
             <div className="space-y-4 p-6">
               {/* Policy selector */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                   Policy (optional, tests all if empty)
                 </label>
                 <div className="relative">
@@ -575,17 +575,17 @@ export default function PoliciesPage() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#5a7184]" />
                 </div>
               </div>
 
               {/* Prompt input */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                <label className="mb-1.5 block text-xs font-medium text-[#5a7184]">
                   Test Prompt
                 </label>
                 <textarea
-                  className="h-32 w-full rounded-lg border border-surface-300 bg-surface-200 p-3 text-sm text-gray-300 placeholder-gray-500 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30 resize-none"
+                  className="h-32 w-full rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-sm text-[#1a2b3c] placeholder-gray-500 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none"
                   placeholder="Enter a prompt to test against the selected policy..."
                   value={dryRunPrompt}
                   onChange={(e) => setDryRunPrompt(e.target.value)}
@@ -603,9 +603,9 @@ export default function PoliciesPage() {
 
               {/* Results */}
               {dryRunResult && (
-                <div className="space-y-3 border-t border-surface-300 pt-4">
+                <div className="space-y-3 border-t border-blue-100 pt-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-300">
+                    <span className="text-sm font-medium text-[#1a2b3c]">
                       Final Decision:
                     </span>
                     <StatusBadge status={dryRunResult.decision} />
@@ -615,13 +615,13 @@ export default function PoliciesPage() {
                     {dryRunResult.rules.map((rule, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between rounded-lg border border-surface-300 bg-surface-200 p-3"
+                        className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50/50 p-3"
                       >
                         <div>
-                          <span className="text-sm font-medium text-gray-200">
+                          <span className="text-sm font-medium text-[#1a2b3c]">
                             {rule.name}
                           </span>
-                          <p className="mt-0.5 text-xs text-gray-500">
+                          <p className="mt-0.5 text-xs text-[#5a7184]">
                             {rule.reason}
                           </p>
                         </div>
@@ -647,12 +647,12 @@ function RuleChip({
   color: "red" | "yellow" | "blue" | "orange" | "cyan" | "green";
 }) {
   const styles: Record<string, string> = {
-    red: "bg-red-500/10 text-red-400 ring-red-500/20",
-    yellow: "bg-yellow-500/10 text-yellow-400 ring-yellow-500/20",
-    blue: "bg-blue-500/10 text-blue-400 ring-blue-500/20",
-    orange: "bg-orange-500/10 text-orange-400 ring-orange-500/20",
-    cyan: "bg-cyan-500/10 text-cyan-400 ring-cyan-500/20",
-    green: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20",
+    red: "bg-red-50 text-red-600 ring-red-500/20",
+    yellow: "bg-amber-50 text-amber-600 ring-yellow-500/20",
+    blue: "bg-blue-50 text-blue-600 ring-blue-500/20",
+    orange: "bg-orange-50 text-orange-600 ring-orange-500/20",
+    cyan: "bg-cyan-50 text-cyan-600 ring-cyan-200",
+    green: "bg-emerald-50 text-emerald-600 ring-emerald-500/20",
   };
 
   return (

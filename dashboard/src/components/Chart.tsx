@@ -27,29 +27,30 @@ export function ThreatActivityChart({ data }: ThreatChartProps) {
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#dce5f0" />
           <XAxis
             dataKey="date"
-            tick={{ fill: "#64748b", fontSize: 12 }}
-            axisLine={{ stroke: "#1e293b" }}
+            tick={{ fill: "#5a7184", fontSize: 12 }}
+            axisLine={{ stroke: "#dce5f0" }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#64748b", fontSize: 12 }}
-            axisLine={{ stroke: "#1e293b" }}
+            tick={{ fill: "#5a7184", fontSize: 12 }}
+            axisLine={{ stroke: "#dce5f0" }}
             tickLine={false}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#111827",
-              border: "1px solid #1e293b",
+              backgroundColor: "#ffffff",
+              border: "1px solid #dce5f0",
               borderRadius: "8px",
-              color: "#e2e8f0",
+              color: "#1a2b3c",
               fontSize: 13,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             }}
           />
           <Legend
-            wrapperStyle={{ fontSize: 12, color: "#94a3b8" }}
+            wrapperStyle={{ fontSize: 12, color: "#5a7184" }}
           />
           <Line
             type="monotone"
@@ -63,9 +64,9 @@ export function ThreatActivityChart({ data }: ThreatChartProps) {
           <Line
             type="monotone"
             dataKey="allowed"
-            stroke="#06d6a0"
+            stroke="#3b82f6"
             strokeWidth={2}
-            dot={{ fill: "#06d6a0", r: 3 }}
+            dot={{ fill: "#3b82f6", r: 3 }}
             activeDot={{ r: 5 }}
             name="Allowed"
           />
@@ -100,7 +101,7 @@ export function RiskPieChart({ data }: RiskPieChartProps) {
             label={({ category, percent }) =>
               `${category} ${(percent * 100).toFixed(0)}%`
             }
-            labelLine={{ stroke: "#475569" }}
+            labelLine={{ stroke: "#5a7184" }}
           >
             {data.map((entry, idx) => (
               <Cell key={`cell-${idx}`} fill={entry.color} />
@@ -108,11 +109,12 @@ export function RiskPieChart({ data }: RiskPieChartProps) {
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: "#111827",
-              border: "1px solid #1e293b",
+              backgroundColor: "#ffffff",
+              border: "1px solid #dce5f0",
               borderRadius: "8px",
-              color: "#e2e8f0",
+              color: "#1a2b3c",
               fontSize: 13,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             }}
           />
         </PieChart>
