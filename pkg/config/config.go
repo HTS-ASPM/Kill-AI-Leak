@@ -220,6 +220,26 @@ func ApplyEnvOverrides(cfg *AppConfig) {
 	}
 }
 
+// Validate checks the configuration for invalid or missing values.
+func (c *AppConfig) Validate() error {
+	if c.Server.Port < 1 || c.Server.Port > 65535 {
+		return fmt.Errorf("config: server.port must be between 1 and 65535, got %d", c.Server.Port)
+	}
+	if c.Server.ReadTimeout <= 0 {
+		return fmt.Errorf("config: server.read_timeout must be > 0")
+	}
+	if c.Server.WriteTimeout <= 0 {
+		return fmt.Errorf("config: server.write_timeout must be > 0")
+	}
+	if c.Proxy.DefaultTimeout <= 0 {
+		return fmt.Errorf("config: proxy.default_timeout must be > 0")
+	}
+	if c.Server.MaxRequestBodyMB <= 0 || c.Server.MaxRequestBodyMB > 100 {
+		return fmt.Errorf("config: server.max_request_body_mb must be between 1 and 100, got %d", c.Server.MaxRequestBodyMB)
+	}
+	return nil
+}
+
 // Addr returns the listen address as host:port.
 func (c *ServerConfig) Addr() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)

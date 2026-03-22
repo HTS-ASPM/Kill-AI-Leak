@@ -34,3 +34,7 @@ DEVICE: str = os.environ.get("DEVICE", _default_device)
 # Server settings
 # ---------------------------------------------------------------------------
 PORT: int = int(os.environ.get("PORT", "5000"))
+
+# API key for authenticating requests. If empty/unset, auth is disabled
+# (local dev mode).
+ML_API_KEY: str = os.environ.get("ML_API_KEY", "")

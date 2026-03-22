@@ -72,6 +72,11 @@ func run() error {
 		cfg.Logging.Level = *logLevel
 	}
 
+	// --- Validate configuration ---
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("validate config: %w", err)
+	}
+
 	// --- Initialize logger ---
 	log := logger.New(logger.ParseLevel(cfg.Logging.Level), os.Stdout)
 	ctx := context.Background()

@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import logging
+import threading
 import time
 
 from flask import Flask, jsonify, request
@@ -29,6 +30,46 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 log = logging.getLogger("ml-server")
+
+# ---------------------------------------------------------------------------
+# Rate limiting (simple in-memory counter)
+# ---------------------------------------------------------------------------
+_rate_lock = threading.Lock()
+_rate_count = 0
+_rate_window_start = time.time()
+_RATE_LIMIT = 100  # max requests per 60-second window
+
+
+# ---------------------------------------------------------------------------
+# Before-request hooks: authentication and rate limiting
+# ---------------------------------------------------------------------------
+
+@app.before_request
+def _check_auth():
+    """Reject requests without a valid API key when ML_API_KEY is set."""
+    if not config.ML_API_KEY:
+        return  # Auth disabled (local dev mode)
+    if request.endpoint == "health":
+        return  # Always allow health checks
+    key = request.headers.get("X-API-Key", "")
+    if key != config.ML_API_KEY:
+        log.warning("Unauthorized request: invalid or missing X-API-Key")
+        return jsonify({"error": "unauthorized", "message": "Invalid or missing X-API-Key"}), 401
+
+
+@app.before_request
+def _check_rate_limit():
+    """Simple per-minute rate limiter using an in-memory counter."""
+    global _rate_count, _rate_window_start
+    with _rate_lock:
+        now = time.time()
+        if now - _rate_window_start >= 60:
+            _rate_count = 0
+            _rate_window_start = now
+        _rate_count += 1
+        if _rate_count > _RATE_LIMIT:
+            log.warning("Rate limit exceeded: %d requests in current window", _rate_count)
+            return jsonify({"error": "rate_limit_exceeded", "message": "Too many requests, try again later"}), 429
 
 # ---------------------------------------------------------------------------
 # Globals populated by load_models()

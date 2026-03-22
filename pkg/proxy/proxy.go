@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -159,7 +162,8 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- 2. Read the request body ---
-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, int64(p.config.Server.MaxRequestBodyMB)*1024*1024))
+	maxBodyBytes := int64(p.config.Server.MaxRequestBodyMB) * 1024 * 1024
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
 	if err != nil {
 		p.log.Error(ctx, "failed to read request body", map[string]any{"error": err.Error()})
 		respondJSON(w, http.StatusBadRequest, errorResponse{
@@ -169,6 +173,17 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+
+	if int64(len(bodyBytes)) > maxBodyBytes {
+		p.log.Warn(ctx, "request body exceeds size limit", map[string]any{
+			"max_mb": p.config.Server.MaxRequestBodyMB,
+		})
+		respondJSON(w, http.StatusRequestEntityTooLarge, errorResponse{
+			Error:   "payload_too_large",
+			Message: fmt.Sprintf("Request body exceeds the %d MB limit", p.config.Server.MaxRequestBodyMB),
+		})
+		return
+	}
 
 	promptText := extractPrompt(bodyBytes, provider)
 
@@ -260,22 +275,134 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		transport = http.DefaultTransport.(*http.Transport)
 	}
 
-	resp, err := transport.RoundTrip(upstreamReq)
-	if err != nil {
-		p.log.Error(ctx, "upstream request failed", map[string]any{
-			"error":    err.Error(),
-			"provider": provider,
-			"target":   target.String(),
-		})
-		respondJSON(w, http.StatusBadGateway, errorResponse{
-			Error:   "upstream_error",
-			Message: fmt.Sprintf("Upstream provider %q returned an error", provider),
-		})
-		return
+	// --- 6b. Retry loop for upstream requests ---
+	maxRetries := p.config.Proxy.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 2
+	}
+	retryBackoff := p.config.Proxy.RetryBackoff
+	if retryBackoff <= 0 {
+		retryBackoff = 500 * time.Millisecond
+	}
+
+	var resp *http.Response
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Rebuild the request body since the previous attempt consumed it.
+			upstreamReq, err = p.buildUpstreamRequest(ctx, r, target, provider, bodyBytes)
+			if err != nil {
+				p.log.Error(ctx, "failed to rebuild upstream request for retry", map[string]any{"error": err.Error()})
+				respondJSON(w, http.StatusInternalServerError, errorResponse{
+					Error:   "proxy_error",
+					Message: "Failed to construct upstream request",
+				})
+				return
+			}
+
+			backoff := time.Duration(float64(retryBackoff) * math.Pow(2, float64(attempt-1)))
+			p.log.Info(ctx, "retrying upstream request", map[string]any{
+				"attempt":  attempt,
+				"backoff":  backoff.String(),
+				"provider": provider,
+			})
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				respondJSON(w, http.StatusGatewayTimeout, errorResponse{
+					Error:   "upstream_timeout",
+					Message: "Request cancelled while waiting for retry",
+				})
+				return
+			}
+		}
+
+		resp, err = transport.RoundTrip(upstreamReq)
+		if err != nil {
+			// Network error: retry if we have attempts left.
+			var netErr net.Error
+			if attempt < maxRetries && errors.As(err, &netErr) {
+				p.log.Warn(ctx, "upstream network error, will retry", map[string]any{
+					"error":   err.Error(),
+					"attempt": attempt,
+				})
+				continue
+			}
+			p.log.Error(ctx, "upstream request failed", map[string]any{
+				"error":    err.Error(),
+				"provider": provider,
+				"target":   target.String(),
+			})
+			respondJSON(w, http.StatusBadGateway, errorResponse{
+				Error:   "upstream_error",
+				Message: fmt.Sprintf("Upstream provider %q returned an error", provider),
+			})
+			return
+		}
+
+		// Only retry on 5xx server errors.
+		if resp.StatusCode >= 500 && attempt < maxRetries {
+			p.log.Warn(ctx, "upstream returned 5xx, will retry", map[string]any{
+				"status":  resp.StatusCode,
+				"attempt": attempt,
+			})
+			resp.Body.Close()
+			continue
+		}
+
+		// Success or non-retryable status -- break out of retry loop.
+		break
 	}
 	defer resp.Body.Close()
 
-	// --- 7. Read upstream response body ---
+	// --- 7. Check for streaming response ---
+	contentType := resp.Header.Get("Content-Type")
+	transferEncoding := resp.Header.Get("Transfer-Encoding")
+	isStreaming := strings.Contains(contentType, "text/event-stream") ||
+		strings.Contains(transferEncoding, "chunked")
+
+	if isStreaming {
+		// Streaming response: skip output guardrails (can't buffer full response)
+		// and stream chunks directly to the client.
+		p.log.Info(ctx, "streaming response detected, skipping output guardrails", map[string]any{
+			"provider":     provider,
+			"content_type": contentType,
+		})
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			p.log.Error(ctx, "response writer does not support flushing for streaming")
+			respondJSON(w, http.StatusInternalServerError, errorResponse{
+				Error:   "streaming_unsupported",
+				Message: "Server does not support streaming responses",
+			})
+			return
+		}
+
+		copyHeaders(w.Header(), resp.Header)
+		w.WriteHeader(resp.StatusCode)
+
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				_, writeErr := w.Write(buf[:n])
+				if writeErr != nil {
+					p.log.Error(ctx, "failed to write streaming chunk", map[string]any{"error": writeErr.Error()})
+					return
+				}
+				flusher.Flush()
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					p.log.Error(ctx, "error reading streaming response", map[string]any{"error": readErr.Error()})
+				}
+				break
+			}
+		}
+		return
+	}
+
+	// --- 7b. Read upstream response body (non-streaming) ---
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		p.log.Error(ctx, "failed to read upstream response", map[string]any{"error": err.Error()})

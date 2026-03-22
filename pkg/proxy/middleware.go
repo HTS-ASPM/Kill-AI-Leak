@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
@@ -116,30 +117,51 @@ type CORSOptions struct {
 	MaxAge         int // seconds
 }
 
-// DefaultCORSOptions returns a sensible default for development. In
-// production the allowed origins should be locked down.
+// DefaultCORSOptions returns a sensible default. AllowedOrigins is empty
+// by default so the CORS middleware will only allow localhost origins
+// (for local development). In production, configure explicit origins.
 func DefaultCORSOptions() CORSOptions {
 	return CORSOptions{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins: nil,
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowedHeaders: []string{"Content-Type", "Authorization", "X-APP-ID", "X-Request-ID"},
 		MaxAge:         86400,
 	}
 }
 
-// CORS handles Cross-Origin Resource Sharing.
+// CORS handles Cross-Origin Resource Sharing. When AllowedOrigins is empty,
+// only localhost origins are permitted (for local development). When origins
+// are configured, the request Origin header is checked against the list.
 func CORS(opts CORSOptions) func(http.Handler) http.Handler {
-	origins := strings.Join(opts.AllowedOrigins, ", ")
+	allowedSet := make(map[string]bool, len(opts.AllowedOrigins))
+	for _, o := range opts.AllowedOrigins {
+		allowedSet[strings.ToLower(o)] = true
+	}
 	methods := strings.Join(opts.AllowedMethods, ", ")
 	headers := strings.Join(opts.AllowedHeaders, ", ")
 	maxAge := fmt.Sprintf("%d", opts.MaxAge)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", origins)
-			w.Header().Set("Access-Control-Allow-Methods", methods)
-			w.Header().Set("Access-Control-Allow-Headers", headers)
-			w.Header().Set("Access-Control-Max-Age", maxAge)
+			origin := r.Header.Get("Origin")
+			allowed := ""
+
+			if origin != "" {
+				originLower := strings.ToLower(origin)
+				if allowedSet[originLower] {
+					allowed = origin
+				} else if len(allowedSet) == 0 && isLocalhostOrigin(originLower) {
+					// No origins configured: allow localhost for local dev.
+					allowed = origin
+				}
+			}
+
+			if allowed != "" {
+				w.Header().Set("Access-Control-Allow-Origin", allowed)
+				w.Header().Set("Access-Control-Allow-Methods", methods)
+				w.Header().Set("Access-Control-Allow-Headers", headers)
+				w.Header().Set("Access-Control-Max-Age", maxAge)
+			}
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -149,6 +171,14 @@ func CORS(opts CORSOptions) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isLocalhostOrigin returns true if the origin refers to a loopback address.
+func isLocalhostOrigin(origin string) bool {
+	origin = strings.TrimPrefix(origin, "http://")
+	origin = strings.TrimPrefix(origin, "https://")
+	host := strings.Split(origin, ":")[0]
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // ---- Timeout Middleware ----
@@ -172,6 +202,7 @@ func Timeout(d time.Duration) func(http.Handler) http.Handler {
 			select {
 			case <-done:
 				// Copy headers that the handler set.
+				tw.mu.Lock()
 				for k, v := range tw.header {
 					for _, vv := range v {
 						w.Header().Add(k, vv)
@@ -181,6 +212,7 @@ func Timeout(d time.Duration) func(http.Handler) http.Handler {
 					w.WriteHeader(tw.code)
 				}
 				_, _ = w.Write(tw.body)
+				tw.mu.Unlock()
 			case <-ctx.Done():
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusGatewayTimeout)
@@ -193,22 +225,31 @@ func Timeout(d time.Duration) func(http.Handler) http.Handler {
 }
 
 // timeoutWriter buffers the response so we can discard it on timeout.
+// A mutex protects all mutable fields from concurrent access since
+// the handler runs in a separate goroutine.
 type timeoutWriter struct {
 	http.ResponseWriter
+	mu     sync.Mutex
 	header http.Header
 	body   []byte
 	code   int
 }
 
 func (tw *timeoutWriter) Header() http.Header {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
 	return tw.header
 }
 
 func (tw *timeoutWriter) WriteHeader(code int) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
 	tw.code = code
 }
 
 func (tw *timeoutWriter) Write(b []byte) (int, error) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
 	tw.body = append(tw.body, b...)
 	return len(b), nil
 }
