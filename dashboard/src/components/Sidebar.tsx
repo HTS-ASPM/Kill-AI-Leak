@@ -35,21 +35,21 @@ export default function Sidebar() {
   return (
     <aside
       className={clsx(
-        "flex h-screen flex-col bg-[#1e3a5f] transition-all duration-200",
+        "flex h-screen flex-col border-r border-blue-100 bg-white transition-all duration-200",
         collapsed ? "w-16" : "w-60",
       )}
     >
       {/* Logo / Brand */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-          <Shield className="h-4.5 w-4.5 text-white" />
+      <div className="flex h-16 items-center gap-3 border-b border-blue-100 px-4">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
+          <Shield className="h-4 w-4 text-white" />
         </div>
         {!collapsed && (
           <div className="flex flex-col overflow-hidden">
-            <span className="truncate text-sm font-bold text-white tracking-wide">
+            <span className="truncate text-sm font-bold text-[#0f2137] tracking-wide">
               Kill AI Leak
             </span>
-            <span className="truncate text-[10px] text-blue-200/60 uppercase tracking-widest">
+            <span className="truncate text-[10px] text-[#5a7184] uppercase tracking-widest">
               Security Platform
             </span>
           </div>
@@ -71,8 +71,8 @@ export default function Sidebar() {
               className={clsx(
                 "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
-                  ? "border-l-3 border-blue-400 bg-[#2b4f7e] text-white"
-                  : "text-blue-100/70 hover:bg-white/10 hover:text-white",
+                  ? "bg-blue-50 text-blue-700 border-l-[3px] border-blue-500"
+                  : "text-[#5a7184] hover:bg-blue-50/60 hover:text-[#1a2b3c]",
               )}
               title={collapsed ? item.name : undefined}
             >
@@ -80,13 +80,13 @@ export default function Sidebar() {
                 className={clsx(
                   "h-[18px] w-[18px] shrink-0",
                   isActive
-                    ? "text-blue-300"
-                    : "text-blue-200/50 group-hover:text-white",
+                    ? "text-blue-600"
+                    : "text-[#94a3b8] group-hover:text-blue-500",
                 )}
               />
               {!collapsed && <span className="truncate">{item.name}</span>}
               {isActive && !collapsed && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-400" />
+                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-500" />
               )}
             </Link>
           );
@@ -94,10 +94,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Collapse toggle */}
-      <div className="border-t border-white/10 p-2">
+      <div className="border-t border-blue-100 p-2">
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="flex w-full items-center justify-center rounded-lg p-2 text-blue-200/50 hover:bg-white/10 hover:text-white transition-colors"
+          className="flex w-full items-center justify-center rounded-lg p-2 text-[#94a3b8] hover:bg-blue-50 hover:text-blue-600 transition-colors"
         >
           {collapsed ? (
             <ChevronRight className="h-4 w-4" />
