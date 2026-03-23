@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Settings,
   Key,
@@ -44,48 +44,40 @@ export default function SettingsPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   // General
-  const [orgName, setOrgName] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_org_name") ?? "Acme Corp";
-    return "Acme Corp";
-  });
-  const [env, setEnv] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_env") ?? "production";
-    return "production";
-  });
+  const [orgName, setOrgName] = useState("Acme Corp");
+  const [env, setEnv] = useState("production");
 
   // API
-  const [apiUrl, setApiUrl] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_api_url") ?? "http://localhost:8080/api/v1";
-    return "http://localhost:8080/api/v1";
-  });
-  const [apiToken, setApiToken] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_api_token") ?? "";
-    return "";
-  });
+  const [apiUrl, setApiUrl] = useState("http://localhost:8080/api/v1");
+  const [apiToken, setApiToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
 
   // Notifications
-  const [webhookUrl, setWebhookUrl] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_webhook_url") ?? "";
-    return "";
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [emailAlerts, setEmailAlerts] = useState("");
+  const [alertSettings, setAlertSettings] = useState<Record<string, boolean>>({
+    "Critical events": true,
+    "Shadow AI detected": true,
+    "Policy violations": true,
+    "Rate limit exceeded": false,
   });
-  const [emailAlerts, setEmailAlerts] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_email_alerts") ?? "";
-    return "";
-  });
-  const [alertSettings, setAlertSettings] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("kal_alert_settings");
-      if (saved) return JSON.parse(saved);
+
+  // Load saved values from localStorage on mount
+  useEffect(() => {
+    setOrgName(localStorage.getItem("kal_org_name") ?? "Acme Corp");
+    setEnv(localStorage.getItem("kal_env") ?? "production");
+    setApiUrl(localStorage.getItem("kal_api_url") ?? "http://localhost:8080/api/v1");
+    setApiToken(localStorage.getItem("kal_api_token") ?? "");
+    setWebhookUrl(localStorage.getItem("kal_webhook_url") ?? "");
+    setEmailAlerts(localStorage.getItem("kal_email_alerts") ?? "");
+    const savedAlerts = localStorage.getItem("kal_alert_settings");
+    if (savedAlerts) {
+      try { setAlertSettings(JSON.parse(savedAlerts)); } catch { /* ignore */ }
     }
-    return {
-      "Critical events": true,
-      "Shadow AI detected": true,
-      "Policy violations": true,
-      "Rate limit exceeded": false,
-    };
-  });
+    setEventRetention(localStorage.getItem("kal_event_retention") ?? "90");
+    setPromptRetention(localStorage.getItem("kal_prompt_retention") ?? "7_days");
+  }, []);
 
   // Team
   const [members, setMembers] = useState([
@@ -108,14 +100,8 @@ export default function SettingsPage() {
   ]);
 
   // Data Retention
-  const [eventRetention, setEventRetention] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_event_retention") ?? "90";
-    return "90";
-  });
-  const [promptRetention, setPromptRetention] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("kal_prompt_retention") ?? "7_days";
-    return "7_days";
-  });
+  const [eventRetention, setEventRetention] = useState("90");
+  const [promptRetention, setPromptRetention] = useState("7_days");
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
