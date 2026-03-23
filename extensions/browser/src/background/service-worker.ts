@@ -564,6 +564,22 @@ chrome.runtime.onMessage.addListener(
         return false;
       }
 
+      case "EVALUATE_ML": {
+        // Forward prompt text to the gateway's ML evaluation endpoint.
+        // Returns PipelineResult with decisions, findings, and confidence.
+        // 3-second timeout; returns null on failure (graceful fallback).
+        const promptText = message.text as string;
+        if (!promptText || !settings.apiBaseUrl) {
+          sendResponse(null);
+          return false;
+        }
+
+        evaluateMLViaGateway(promptText)
+          .then((result) => sendResponse(result))
+          .catch(() => sendResponse(null));
+        return true; // async response
+      }
+
       case "FORCE_POLICY_REFRESH": {
         policyManager
           ?.fetchPolicies()
@@ -580,6 +596,71 @@ chrome.runtime.onMessage.addListener(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// ML Evaluation via Gateway
+// ---------------------------------------------------------------------------
+
+/** Response shape from the gateway's /api/evaluate endpoint. */
+interface MLEvaluationResult {
+  findings?: Array<{
+    label?: string;
+    confidence?: number;
+    severity?: string;
+  }>;
+  decisions?: Array<{
+    action?: string;
+    reason?: string;
+  }>;
+  error?: string;
+}
+
+/**
+ * Send prompt text to the gateway's ML evaluation endpoint.
+ * Uses OpenAI-compatible request format. Returns findings or null on failure.
+ * Enforces a 3-second timeout so the extension remains responsive.
+ */
+async function evaluateMLViaGateway(
+  text: string,
+): Promise<MLEvaluationResult | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const res = await fetch(`${settings.apiBaseUrl}/api/evaluate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(settings.authToken
+          ? { Authorization: `Bearer ${settings.authToken}` }
+          : {}),
+      },
+      body: JSON.stringify({
+        model: "kill-ai-leak-scanner",
+        messages: [
+          {
+            role: "user",
+            content: text,
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const body = (await res.json()) as MLEvaluationResult;
+    return body;
+  } catch {
+    // Gateway unreachable, timeout, or abort — graceful fallback.
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Settings persistence

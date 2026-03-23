@@ -24,9 +24,10 @@ var ErrServerUnavailable = errors.New("ml inference server unavailable")
 
 // ModelType enumerates the model types supported by the inference server.
 const (
-	ModelTypeInjection  = "injection"
-	ModelTypeToxicity   = "toxicity"
-	ModelTypeJailbreak  = "jailbreak"
+	ModelTypeInjection = "injection"
+	ModelTypeToxicity  = "toxicity"
+	ModelTypeJailbreak = "jailbreak"
+	ModelTypeNER       = "ner"
 )
 
 // PredictRequest is the JSON body sent to the /predict endpoint.
@@ -37,9 +38,19 @@ type PredictRequest struct {
 
 // PredictResponse is the JSON body returned by the /predict endpoint.
 type PredictResponse struct {
-	Label  string             `json:"label"`
-	Score  float64            `json:"score"`
-	Labels map[string]float64 `json:"labels,omitempty"`
+	Label    string             `json:"label"`
+	Score    float64            `json:"score"`
+	Labels   map[string]float64 `json:"labels,omitempty"`
+	Entities []RawEntity        `json:"entities,omitempty"`
+}
+
+// RawEntity represents a single named entity returned by the NER model.
+type RawEntity struct {
+	Type  string  `json:"type"`
+	Value string  `json:"value"`
+	Start int     `json:"start"`
+	End   int     `json:"end"`
+	Score float64 `json:"score"`
 }
 
 // InferenceClient communicates with the sidecar ML inference server over

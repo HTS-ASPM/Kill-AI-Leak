@@ -5,6 +5,7 @@
 package pii
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	mlner "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/ner"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
@@ -119,10 +121,12 @@ func initPatterns() {
 
 // Detector is a regex-based PII detection guardrail rule. It scans the
 // prompt text against a set of patterns and returns findings with positions,
-// types, and severity levels.
+// types, and severity levels. An optional NER scorer can be attached to
+// detect PII that regex cannot catch (person names, organizations, locations).
 type Detector struct {
-	mu  sync.RWMutex
-	cfg detectorConfig
+	mu        sync.RWMutex
+	cfg       detectorConfig
+	nerScorer *mlner.MLNERScorer
 }
 
 type detectorConfig struct {
@@ -152,6 +156,15 @@ func New() *Detector {
 			blockOnDetect:     false, // default to anonymize
 		},
 	}
+}
+
+// SetNERScorer attaches an ML-based NER scorer for detecting PII that
+// regex patterns cannot reliably catch (person names, organizations,
+// locations). Pass nil to disable NER scoring and revert to regex-only.
+func (d *Detector) SetNERScorer(scorer *mlner.MLNERScorer) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.nerScorer = scorer
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +257,52 @@ func (d *Detector) Evaluate(ctx *guardrails.EvalContext) (*models.GuardrailEvalu
 		}
 		if cfg.maxFindings > 0 && len(findings) >= cfg.maxFindings {
 			break
+		}
+	}
+
+	// --- NER-based PII detection (Layer 2) --------------------------------
+	// If an NER scorer is attached, run it to detect entities that regex
+	// cannot catch: person names, organizations, locations.
+	d.mu.RLock()
+	scorer := d.nerScorer
+	d.mu.RUnlock()
+
+	if scorer != nil {
+		nerResult, nerErr := scorer.Score(context.Background(), text)
+		if nerErr == nil && nerResult != nil {
+			for _, ent := range nerResult.Entities {
+				// Skip if we already hit the findings cap.
+				if cfg.maxFindings > 0 && len(findings) >= cfg.maxFindings {
+					break
+				}
+
+				// Skip entity types that are not actionable PII.
+				if ent.Type == mlner.TypeMisc {
+					continue
+				}
+
+				// Determine severity for NER-detected entities.
+				nerSeverity := models.PIISeverityMedium
+				if ent.Type == mlner.TypePersonName {
+					nerSeverity = models.PIISeverityHigh
+				}
+
+				masked := maskValue(ent.Value)
+
+				findings = append(findings, models.Finding{
+					Type:       ent.Type,
+					Value:      masked,
+					Location:   fmt.Sprintf("position %d-%d", ent.Start, ent.End),
+					Severity:   string(nerSeverity),
+					Confidence: ent.Score,
+					StartPos:   ent.Start,
+					EndPos:     ent.End,
+				})
+
+				if severityRank[nerSeverity] > severityRank[highestSeverity] {
+					highestSeverity = nerSeverity
+				}
+			}
 		}
 	}
 

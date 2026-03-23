@@ -19,6 +19,10 @@ MODEL_TOXICITY: str = os.environ.get(
     "MODEL_TOXICITY", "unitary/toxic-bert"
 )
 
+MODEL_NER: str = os.environ.get(
+    "MODEL_NER", "dslim/bert-base-NER"
+)
+
 # ---------------------------------------------------------------------------
 # Inference settings
 # ---------------------------------------------------------------------------

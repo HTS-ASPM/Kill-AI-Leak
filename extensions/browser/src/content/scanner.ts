@@ -188,6 +188,246 @@ interface ScanFinding {
 }
 
 // ---------------------------------------------------------------------------
+// Entropy Detection
+// ---------------------------------------------------------------------------
+
+/** Common English words that should never be flagged as high-entropy secrets. */
+const COMMON_WORDS = new Set([
+  "the", "and", "that", "have", "for", "not", "with", "you", "this", "but",
+  "his", "from", "they", "been", "have", "said", "each", "which", "their",
+  "will", "other", "about", "many", "then", "them", "these", "some", "her",
+  "would", "make", "like", "could", "time", "there", "than", "first", "been",
+  "made", "after", "being", "more", "through", "just", "where", "before",
+  "between", "back", "only", "come", "its", "over", "think", "also", "into",
+  "year", "your", "good", "some", "could", "should", "because", "people",
+  "function", "return", "const", "class", "import", "export", "default",
+  "string", "number", "boolean", "interface", "undefined", "null", "object",
+  "window", "document", "console", "prototype", "constructor", "application",
+  "configuration", "implementation", "authentication", "authorization",
+  "development", "environment", "infrastructure", "documentation",
+  "international", "communication", "representation", "transportation",
+]);
+
+/**
+ * Compute Shannon entropy (bits per character) for a given string.
+ * Higher entropy indicates more randomness — likely a secret or key.
+ */
+function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0;
+
+  const freq = new Map<string, number>();
+  for (const ch of s) {
+    freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  }
+
+  let entropy = 0;
+  const len = s.length;
+  for (const count of freq.values()) {
+    const p = count / len;
+    if (p > 0) {
+      entropy -= p * Math.log2(p);
+    }
+  }
+  return entropy;
+}
+
+/**
+ * Detect high-entropy strings (likely secrets, API keys, random tokens).
+ * Tokenizes text by whitespace, checks each token longer than 16 chars.
+ */
+function scanEntropy(text: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  const tokenRegex = /\S+/g;
+  let tokenMatch: RegExpExecArray | null;
+
+  while ((tokenMatch = tokenRegex.exec(text)) !== null) {
+    const token = tokenMatch[0];
+    const startPos = tokenMatch.index;
+
+    // Only consider tokens longer than 16 characters.
+    if (token.length <= 16) continue;
+
+    // Skip URLs.
+    if (/^https?:\/\//i.test(token)) continue;
+
+    // Skip file paths (Unix and Windows).
+    if (/^[\/~]/.test(token) || /^[A-Za-z]:\\/.test(token)) continue;
+    if (/^\.\.?\//.test(token)) continue;
+
+    // Skip common English words (case-insensitive).
+    if (COMMON_WORDS.has(token.toLowerCase())) continue;
+
+    // Skip tokens that look like HTML/XML tags or CSS selectors.
+    if (/^<[^>]+>$/.test(token) || /^[.#][a-zA-Z]/.test(token)) continue;
+
+    // Skip tokens that are pure numeric (not secrets).
+    if (/^\d+$/.test(token)) continue;
+
+    const entropy = shannonEntropy(token);
+
+    if (entropy > 4.0) {
+      findings.push({
+        type: "secret",
+        label: "high_entropy_secret",
+        severity: "high",
+        value: token,
+        startPos,
+        endPos: startPos + token.length,
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Keyword Proximity Detection
+// ---------------------------------------------------------------------------
+
+/** Sensitive keywords that indicate a secret value may follow. */
+const SENSITIVE_KEYWORDS = [
+  "secret", "key", "token", "password", "credential",
+  "api_key", "apikey", "auth", "private", "access_key", "client_secret",
+];
+
+/** Keywords whose proximity-detected values are critical severity. */
+const CRITICAL_KEYWORDS = new Set(["password", "secret", "private_key", "private"]);
+
+/**
+ * Detect secrets by looking for sensitive keywords followed by value-like strings.
+ * Examines the 100 characters after each keyword for quoted strings or
+ * values after assignment operators (=, :, -, is).
+ */
+function scanKeywordProximity(text: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  const textLower = text.toLowerCase();
+
+  for (const keyword of SENSITIVE_KEYWORDS) {
+    let searchFrom = 0;
+    while (true) {
+      const kwIndex = textLower.indexOf(keyword, searchFrom);
+      if (kwIndex === -1) break;
+      searchFrom = kwIndex + keyword.length;
+
+      // Look at the next 100 characters after the keyword.
+      const windowStart = kwIndex + keyword.length;
+      const windowEnd = Math.min(text.length, windowStart + 100);
+      const window = text.slice(windowStart, windowEnd);
+
+      // Try to extract a value from the window:
+      //  1. Quoted string: "value" or 'value'
+      //  2. Value after assignment: = value, : value, - value, is value
+      let extractedValue: string | null = null;
+      let valueOffset = 0;
+
+      // Pattern 1: quoted strings
+      const quotedMatch = window.match(/["']([^"'\s]{4,})["']/);
+      if (quotedMatch && quotedMatch.index !== undefined) {
+        extractedValue = quotedMatch[1];
+        valueOffset = quotedMatch.index + 1; // +1 for the opening quote
+      }
+
+      // Pattern 2: value after assignment operator (=, :, -, is)
+      if (!extractedValue) {
+        const assignMatch = window.match(/\s*(?:[=:\-]|is)\s*["']?(\S{4,})["']?/);
+        if (assignMatch && assignMatch[1] && assignMatch.index !== undefined) {
+          // Clean trailing quotes or punctuation from the value.
+          extractedValue = assignMatch[1].replace(/["';,]+$/, "");
+          valueOffset = assignMatch.index + assignMatch[0].indexOf(assignMatch[1]);
+        }
+      }
+
+      if (!extractedValue || extractedValue.length <= 3) continue;
+
+      const valueStartPos = windowStart + valueOffset;
+      const valueEndPos = valueStartPos + extractedValue.length;
+      const severity = CRITICAL_KEYWORDS.has(keyword) ? "critical" : "high";
+
+      findings.push({
+        type: "secret",
+        label: keyword,
+        severity,
+        value: extractedValue,
+        startPos: valueStartPos,
+        endPos: valueEndPos,
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// ML Evaluation (async, non-blocking)
+// ---------------------------------------------------------------------------
+
+/**
+ * Request ML evaluation from the gateway via the background service worker.
+ * Returns additional findings (injection/jailbreak detection) or an empty array.
+ * Times out after 2 seconds — regex results are never delayed.
+ */
+async function evaluateML(text: string): Promise<ScanFinding[]> {
+  return new Promise<ScanFinding[]>((resolve) => {
+    // 2-second timeout so we never block the user.
+    const timer = setTimeout(() => resolve([]), 2000);
+
+    try {
+      chrome.runtime.sendMessage(
+        { type: "EVALUATE_ML", text },
+        (response: MLEvaluationResponse | null | undefined) => {
+          clearTimeout(timer);
+
+          if (!response || !response.findings || response.findings.length === 0) {
+            resolve([]);
+            return;
+          }
+
+          const mlFindings: ScanFinding[] = [];
+          for (const f of response.findings) {
+            // Only include ML findings for injection/jailbreak detection
+            // (secrets/PII are already handled by regex + entropy + proximity).
+            const labelLower = (f.label ?? "").toLowerCase();
+            if (
+              !labelLower.includes("injection") &&
+              !labelLower.includes("jailbreak")
+            ) {
+              continue;
+            }
+
+            // Only include high-confidence ML results.
+            if ((f.confidence ?? 0) <= 0.7) continue;
+
+            mlFindings.push({
+              type: "ml",
+              label: labelLower.includes("jailbreak") ? "ml_jailbreak" : "ml_injection",
+              severity: "critical",
+              value: `[ML confidence: ${((f.confidence ?? 0) * 100).toFixed(1)}%]`,
+              startPos: 0,
+              endPos: text.length,
+            });
+          }
+
+          resolve(mlFindings);
+        },
+      );
+    } catch {
+      clearTimeout(timer);
+      resolve([]);
+    }
+  });
+}
+
+/** Shape of the ML evaluation response from the background worker. */
+interface MLEvaluationResponse {
+  findings?: Array<{
+    label?: string;
+    confidence?: number;
+    severity?: string;
+  }>;
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Scanner
 // ---------------------------------------------------------------------------
 
@@ -197,6 +437,7 @@ function scanText(text: string): ScanFinding[] {
   const findings: ScanFinding[] = [];
   const seen = new Set<string>();
 
+  // --- Phase 1: Regex pattern matching ---
   for (const pattern of ALL_PATTERNS) {
     // Reset lastIndex for global regexes.
     pattern.regex.lastIndex = 0;
@@ -253,8 +494,38 @@ function scanText(text: string): ScanFinding[] {
     }
   }
 
+  // --- Phase 2: Entropy detection ---
+  const entropyFindings = scanEntropy(text);
+  for (const ef of entropyFindings) {
+    // Deduplicate: skip if a regex finding already covers the same position range.
+    const dominated = findings.some(
+      (f) => f.startPos <= ef.startPos && f.endPos >= ef.endPos,
+    );
+    if (!dominated) {
+      findings.push(ef);
+    }
+  }
+
+  // --- Phase 3: Keyword proximity detection ---
+  const proximityFindings = scanKeywordProximity(text);
+  for (const pf of proximityFindings) {
+    // Deduplicate: skip if a regex or entropy finding already covers this range.
+    const dominated = findings.some(
+      (f) => f.startPos <= pf.startPos && f.endPos >= pf.endPos,
+    );
+    if (!dominated) {
+      findings.push(pf);
+    }
+  }
+
+  // --- Phase 4: ML evaluation (async, non-blocking) ---
+  // Fire off ML evaluation in the background. It will augment findings
+  // asynchronously; callers that need ML results should use scanTextAsync().
+  // The synchronous scanText() returns regex + entropy + proximity results immediately.
+
   return findings;
 }
+
 
 // ---------------------------------------------------------------------------
 // Warning Overlay
@@ -415,8 +686,24 @@ function interceptFormSubmissions(): void {
       const text = getInputText(target as HTMLTextAreaElement);
       if (!text) return;
 
+      // Run sync scan first for immediate results; ML runs in background.
       const findings = scanText(text);
-      if (findings.length === 0) return;
+
+      // Fire ML evaluation in background — augment findings if ML detects injection/jailbreak.
+      const mlPromise = evaluateML(text).then((mlFindings) => {
+        for (const mf of mlFindings) {
+          const dominated = findings.some(
+            (f) => f.label === mf.label || (f.startPos <= mf.startPos && f.endPos >= mf.endPos),
+          );
+          if (!dominated) findings.push(mf);
+        }
+      }).catch(() => {});
+
+      if (findings.length === 0) {
+        // Wait briefly for ML to potentially find injection/jailbreak.
+        await mlPromise;
+        if (findings.length === 0) return;
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -476,7 +763,21 @@ function interceptFormSubmissions(): void {
         if (!text) continue;
 
         const findings = scanText(text);
-        if (findings.length === 0) continue;
+
+        // Fire ML evaluation in background.
+        const mlPromise = evaluateML(text).then((mlFindings) => {
+          for (const mf of mlFindings) {
+            const dominated = findings.some(
+              (f) => f.label === mf.label || (f.startPos <= mf.startPos && f.endPos >= mf.endPos),
+            );
+            if (!dominated) findings.push(mf);
+          }
+        }).catch(() => {});
+
+        if (findings.length === 0) {
+          await mlPromise;
+          if (findings.length === 0) continue;
+        }
 
         event.preventDefault();
         event.stopPropagation();
@@ -543,6 +844,21 @@ const originalFetch = window.fetch.bind(window);
     const bodyText = await extractBodyText(init.body);
     if (bodyText) {
       const findings = scanText(bodyText);
+
+      // Fire ML evaluation in background.
+      const mlPromise = evaluateML(bodyText).then((mlFindings) => {
+        for (const mf of mlFindings) {
+          const dominated = findings.some(
+            (f) => f.label === mf.label || (f.startPos <= mf.startPos && f.endPos >= mf.endPos),
+          );
+          if (!dominated) findings.push(mf);
+        }
+      }).catch(() => {});
+
+      if (findings.length === 0) {
+        await mlPromise;
+      }
+
       if (findings.length > 0) {
         reportFindings(findings);
 

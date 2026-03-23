@@ -2,13 +2,15 @@
 ML inference server for Kill-AI-Leak.
 
 Uses HuggingFace transformer models for prompt injection detection,
-toxicity classification, and jailbreak detection.  ONNX Runtime is used
-for fast CPU inference when available, with automatic fallback to
+toxicity classification, jailbreak detection, and named entity
+recognition (NER) for PII that regex cannot catch.  ONNX Runtime is
+used for fast CPU inference when available, with automatic fallback to
 PyTorch.
 
 Models:
     - Injection / Jailbreak: protectai/deberta-v3-base-prompt-injection-v2
     - Toxicity:              unitary/toxic-bert
+    - NER (PII):             dslim/bert-base-NER
 
 Endpoints:
     POST /predict       -- single prediction
@@ -77,6 +79,7 @@ def _check_rate_limit():
 
 injection_pipeline = None   # handles both "injection" and "jailbreak"
 toxicity_pipeline = None
+ner_pipeline = None         # NER for PII detection (names, orgs, locations)
 models_ready = False
 
 # Expected toxicity output categories (our API contract)
@@ -158,9 +161,37 @@ def _load_pipeline(model_id: str, task: str = "text-classification"):
     return _load_pipeline_pytorch(model_id, task)
 
 
+def _load_pipeline_ner(model_id: str):
+    """Load a token-classification (NER) pipeline using PyTorch.
+
+    ONNX export is not attempted for NER models because the optimum
+    exporter does not always handle token-classification architectures
+    cleanly, and the BERT-base NER model is already lightweight enough
+    for CPU inference.
+    """
+    from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
+
+    log.info("Loading NER pipeline for %s ...", model_id)
+    t0 = time.time()
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForTokenClassification.from_pretrained(model_id)
+    if config.DEVICE != "cpu":
+        model = model.to(config.DEVICE)
+    pipe = pipeline(
+        "ner",
+        model=model,
+        tokenizer=tokenizer,
+        device=config.DEVICE if config.DEVICE != "cpu" else -1,
+        aggregation_strategy="none",
+    )
+    elapsed = time.time() - t0
+    log.info("NER pipeline ready for %s (%.1fs)", model_id, elapsed)
+    return pipe
+
+
 def load_models():
     """Download / cache and load all models.  Called once at startup."""
-    global injection_pipeline, toxicity_pipeline, models_ready
+    global injection_pipeline, toxicity_pipeline, ner_pipeline, models_ready
 
     log.info("Loading models ...")
     overall_t0 = time.time()
@@ -172,6 +203,9 @@ def load_models():
     # toxic-bert is a multi-label classifier; use top_k=None to get all
     # label scores in a single forward pass.
     toxicity_pipeline = _load_pipeline(config.MODEL_TOXICITY)
+
+    # -- NER model for PII detection (names, orgs, locations) ---------------
+    ner_pipeline = _load_pipeline_ner(config.MODEL_NER)
 
     overall_elapsed = time.time() - overall_t0
     log.info("All models loaded in %.1fs", overall_elapsed)
@@ -185,6 +219,7 @@ def warmup():
     dummy = "This is a warmup sentence."
     predict_injection(dummy)
     predict_toxicity(dummy)
+    predict_ner("John Smith works at Acme Corp in New York.")
     elapsed = time.time() - t0
     log.info("Warmup complete in %.1fs", elapsed)
 
@@ -290,10 +325,121 @@ def predict_toxicity(text: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# NER entity type mapping
+# ---------------------------------------------------------------------------
+
+# Map from BERT-NER IOB tags (without B-/I- prefix) to our API labels.
+_NER_TYPE_MAP = {
+    "PER":  "person",
+    "ORG":  "organization",
+    "LOC":  "location",
+    "MISC": "misc",
+}
+
+
+def predict_ner(text: str) -> dict:
+    """Run Named Entity Recognition on *text* and return detected entities.
+
+    The ``dslim/bert-base-NER`` model outputs per-token predictions with
+    IOB-2 tags (B-PER, I-PER, B-ORG, ...).  We group consecutive B-/I-
+    tokens that share the same entity type into single spans and return
+    them alongside per-type max confidence scores.
+
+    Response contract (extends PredictResponse with ``entities`` list):
+    - ``label``:   ``"pii_detected"`` if any entities found, else ``"clean"``
+    - ``score``:   max entity confidence across all entities
+    - ``labels``:  mapping of entity type → max confidence for that type
+    - ``entities``: list of ``{type, value, start, end, score}`` dicts
+    """
+    raw_tokens = ner_pipeline(text)
+
+    # --- Group consecutive B-/I- tokens into entities ----------------------
+    entities: list[dict] = []
+    current: dict | None = None
+
+    for tok in raw_tokens:
+        tag = tok["entity"]          # e.g. "B-PER", "I-PER", "O"
+        score = float(tok["score"])
+        start = int(tok["start"])
+        end = int(tok["end"])
+
+        if tag.startswith("B-"):
+            # Flush any in-progress entity.
+            if current is not None:
+                current["value"] = text[current["start"]:current["end"]]
+                entities.append(current)
+            ent_type = tag[2:]        # "PER", "ORG", ...
+            current = {
+                "type": ent_type,
+                "start": start,
+                "end": end,
+                "score": score,
+            }
+
+        elif tag.startswith("I-") and current is not None:
+            ent_type = tag[2:]
+            if ent_type == current["type"]:
+                # Extend the current entity.
+                current["end"] = end
+                current["score"] = max(current["score"], score)
+            else:
+                # Type mismatch — flush and start fresh.
+                current["value"] = text[current["start"]:current["end"]]
+                entities.append(current)
+                current = {
+                    "type": ent_type,
+                    "start": start,
+                    "end": end,
+                    "score": score,
+                }
+        else:
+            # "O" tag or orphan I- without a preceding B-.
+            if current is not None:
+                current["value"] = text[current["start"]:current["end"]]
+                entities.append(current)
+                current = None
+
+    # Flush last entity.
+    if current is not None:
+        current["value"] = text[current["start"]:current["end"]]
+        entities.append(current)
+
+    # --- Build per-type max confidence and response entity list -------------
+    type_max: dict[str, float] = {}
+    response_entities: list[dict] = []
+
+    for ent in entities:
+        raw_type = ent["type"]                       # "PER", "ORG", ...
+        api_type = _NER_TYPE_MAP.get(raw_type, raw_type.lower())
+        sc = round(ent["score"], 6)
+
+        response_entities.append({
+            "type":  raw_type,
+            "value": ent["value"],
+            "start": ent["start"],
+            "end":   ent["end"],
+            "score": sc,
+        })
+
+        type_max[api_type] = max(type_max.get(api_type, 0.0), sc)
+
+    max_score = max(type_max.values()) if type_max else 0.0
+    label = "pii_detected" if entities else "clean"
+
+    return {
+        "label":    label,
+        "score":    round(max_score, 6),
+        "labels":   {k: round(v, 6) for k, v in type_max.items()},
+        "entities": response_entities,
+    }
+
+
 PREDICTOR_MAP = {
     "injection": predict_injection,
     "toxicity":  predict_toxicity,
     "jailbreak": predict_jailbreak,
+    "ner":       predict_ner,
 }
 
 

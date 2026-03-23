@@ -60,6 +60,7 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/ml"
 	mlinjection "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/injection"
+	mlner "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/ner"
 	mltoxicity "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/proxy"
@@ -146,12 +147,14 @@ func run() error {
 		// Create detection rules.
 		injDet := injection.New()
 		toxDet := toxicity.New()
+		piiDet := pii.New()
 
 		// --- ML inference layer ---
 		if *mlServerURL != "" {
 			mlClient := ml.NewInferenceClient(*mlServerURL, 2*time.Second)
 			injDet.SetMLScorer(mlinjection.NewMLInjectionScorer(mlClient))
 			toxDet.SetMLScorer(mltoxicity.NewMLToxicityScorer(mlClient))
+			piiDet.SetNERScorer(mlner.NewMLNERScorer(mlClient))
 			log.Info(ctx, "ML inference enabled", map[string]any{
 				"ml_server": *mlServerURL,
 			})
@@ -170,7 +173,7 @@ func run() error {
 			shadowai.New(),                  // GR-009: Shadow AI Detection
 
 			// --- Input Stage ---
-			pii.New(),                       // GR-010: PII Detection
+			piiDet,                          // GR-010: PII Detection (regex + NER)
 			secrets.New(),                   // GR-012: Secret Detection
 			injDet,                          // GR-013: Prompt Injection Detection
 			jailbreak.New(),                 // GR-014: Jailbreak Detection
