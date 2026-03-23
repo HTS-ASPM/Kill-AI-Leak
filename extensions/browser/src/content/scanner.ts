@@ -386,9 +386,17 @@ function interceptFormSubmissions(): void {
       event.preventDefault();
       event.stopPropagation();
 
-      reportFindings(findings);
+      // Check if user has a default action set (auto-block / auto-anonymize).
+      const defaultAction = await getDefaultAction();
+      let action: "block" | "anonymize" | "allow";
 
-      const action = await waitForUserAction(findings);
+      if (defaultAction === "block" || defaultAction === "anonymize") {
+        action = defaultAction;
+        reportFindings(findings, action);
+      } else {
+        reportFindings(findings);
+        action = await waitForUserAction(findings);
+      }
 
       if (action === "block") {
         // Do nothing — submission was blocked.
@@ -686,9 +694,10 @@ function anonymizeText(text: string, findings: ScanFinding[]): string {
 // Report findings to background service worker
 // ---------------------------------------------------------------------------
 
-function reportFindings(findings: ScanFinding[]): void {
+function reportFindings(findings: ScanFinding[], action?: string): void {
   chrome.runtime.sendMessage({
     type: "SCAN_RESULT",
+    action: action ?? "block",
     findings: findings.map((f) => ({
       type: f.label,
       severity: f.severity,
@@ -710,6 +719,23 @@ function escapeHtml(s: string): string {
   const div = document.createElement("div");
   div.textContent = s;
   return div.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Default action from settings
+// ---------------------------------------------------------------------------
+
+function getDefaultAction(): Promise<"ask" | "block" | "anonymize"> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
+      const action = response?.settings?.defaultAction;
+      if (action === "block" || action === "anonymize") {
+        resolve(action);
+      } else {
+        resolve("ask");
+      }
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

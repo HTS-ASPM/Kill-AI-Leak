@@ -37,6 +37,7 @@ interface SettingsResponse {
     apiBaseUrl: string;
     protectionEnabled: boolean;
     sensitivityLevel: "low" | "medium" | "high";
+    defaultAction?: "ask" | "block" | "anonymize";
     notificationsEnabled: boolean;
   };
 }
@@ -56,12 +57,17 @@ const toggleProtection = document.getElementById(
 const totalTools = document.getElementById("total-tools")!;
 const totalPrompts = document.getElementById("total-prompts")!;
 const toolList = document.getElementById("tool-list")!;
+const defaultAction = document.getElementById(
+  "default-action",
+) as HTMLSelectElement;
 const sensitivityLevel = document.getElementById(
   "sensitivity-level",
 ) as HTMLSelectElement;
 const toggleNotifications = document.getElementById(
   "toggle-notifications",
 ) as HTMLInputElement;
+const totalBlocked = document.getElementById("total-blocked")!;
+const scanHistoryList = document.getElementById("scan-history")!;
 const btnAllowTemp = document.getElementById(
   "btn-allow-temp",
 ) as HTMLButtonElement;
@@ -198,6 +204,55 @@ async function loadUsage(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Load scan history (real detection data)
+// ---------------------------------------------------------------------------
+
+interface ScanHistoryResponse {
+  scans: Array<{
+    timestamp: number;
+    domain: string;
+    findings: Array<{ type: string; severity: string }>;
+    action: string;
+  }>;
+  blockedToday: number;
+  criticalToday: number;
+}
+
+async function loadScanHistory(): Promise<void> {
+  const res = await sendMessage<ScanHistoryResponse>({ type: "GET_SCAN_HISTORY" });
+
+  totalBlocked.textContent = String(res.blockedToday);
+
+  if (res.scans.length === 0) {
+    scanHistoryList.innerHTML =
+      '<li class="empty-state">No threats detected today.</li>';
+    return;
+  }
+
+  scanHistoryList.innerHTML = res.scans
+    .slice(0, 8)
+    .map((scan) => {
+      const time = new Date(scan.timestamp);
+      const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const types = scan.findings.map((f) => f.type).join(", ");
+      const hasCritical = scan.findings.some((f) => f.severity === "critical");
+      const dotColor = hasCritical ? "background: #ef4444;" : "background: #f59e0b;";
+
+      return `
+        <li class="tool-item">
+          <span class="tool-dot" style="${dotColor}"></span>
+          <span class="tool-name" style="font-size: 12px;">
+            <strong>${escapeHtml(types)}</strong>
+            <span style="color: #5a7184; font-weight: 400;"> on ${escapeHtml(scan.domain)}</span>
+          </span>
+          <span class="tool-count">${timeStr}</span>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+// ---------------------------------------------------------------------------
 // Load settings
 // ---------------------------------------------------------------------------
 
@@ -205,6 +260,7 @@ async function loadSettings(): Promise<void> {
   const res = await sendMessage<SettingsResponse>({ type: "GET_SETTINGS" });
   const s = res.settings;
 
+  defaultAction.value = s.defaultAction ?? "ask";
   sensitivityLevel.value = s.sensitivityLevel;
   toggleNotifications.checked = s.notificationsEnabled;
 
@@ -233,6 +289,13 @@ btnAllowTemp.addEventListener("click", async () => {
   await sendMessage({ type: "TEMP_ALLOW_SITE", domain: currentTabDomain });
   btnAllowTemp.textContent = "Allowed (1h)";
   btnAllowTemp.disabled = true;
+});
+
+defaultAction.addEventListener("change", async () => {
+  await sendMessage({
+    type: "UPDATE_SETTINGS",
+    settings: { defaultAction: defaultAction.value },
+  });
 });
 
 sensitivityLevel.addEventListener("change", async () => {
@@ -322,7 +385,7 @@ function escapeHtml(s: string): string {
 // ---------------------------------------------------------------------------
 
 async function init(): Promise<void> {
-  await Promise.all([loadStatus(), loadUsage(), loadSettings()]);
+  await Promise.all([loadStatus(), loadUsage(), loadScanHistory(), loadSettings()]);
 }
 
 document.addEventListener("DOMContentLoaded", init);

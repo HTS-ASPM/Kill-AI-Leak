@@ -33,6 +33,7 @@ interface UserSettings {
   team?: string;
   protectionEnabled: boolean;
   sensitivityLevel: "low" | "medium" | "high";
+  defaultAction: "ask" | "block" | "anonymize";
   notificationsEnabled: boolean;
 }
 
@@ -96,6 +97,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   userId: "",
   protectionEnabled: true,
   sensitivityLevel: "medium",
+  defaultAction: "ask",
   notificationsEnabled: true,
 };
 
@@ -111,6 +113,16 @@ const rateBuckets = new Map<string, RateBucket>();
 /** Queue of events waiting to be flushed to the API. */
 let eventQueue: SecurityEvent[] = [];
 const EVENT_FLUSH_MAX_BATCH = 50;
+
+/** Recent scan findings from content scripts (ring buffer, max 50). */
+interface ScanRecord {
+  timestamp: number;
+  domain: string;
+  findings: Array<{ type: string; severity: string }>;
+  action: string; // "block" | "anonymize" | "allow"
+}
+const scanHistory: ScanRecord[] = [];
+const SCAN_HISTORY_MAX = 50;
 
 /** Set of temporarily allowed domains (user override from popup). */
 const temporaryAllowList = new Set<string>();
@@ -492,6 +504,19 @@ chrome.runtime.onMessage.addListener(
         }>;
         if (findings && findings.length > 0) {
           const tabUrl = sender.tab?.url ?? "";
+          const domain = tabUrl ? new URL(tabUrl).hostname : "unknown";
+
+          // Record to scan history.
+          scanHistory.unshift({
+            timestamp: Date.now(),
+            domain,
+            findings,
+            action: message.action as string ?? "block",
+          });
+          if (scanHistory.length > SCAN_HISTORY_MAX) {
+            scanHistory.length = SCAN_HISTORY_MAX;
+          }
+
           const entry = getAIDomainEntry(tabUrl);
           if (entry) {
             const severity = findings.some((f) => f.severity === "critical")
@@ -519,6 +544,23 @@ chrome.runtime.onMessage.addListener(
           }
         }
         sendResponse({ ok: true });
+        return false;
+      }
+
+      case "GET_SCAN_HISTORY": {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayMs = todayStart.getTime();
+        const todayScans = scanHistory.filter((r) => r.timestamp >= todayMs);
+        const blockedCount = todayScans.length;
+        const criticalCount = todayScans.filter((r) =>
+          r.findings.some((f) => f.severity === "critical"),
+        ).length;
+        sendResponse({
+          scans: todayScans.slice(0, 20),
+          blockedToday: blockedCount,
+          criticalToday: criticalCount,
+        });
         return false;
       }
 

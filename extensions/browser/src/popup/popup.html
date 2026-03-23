@@ -332,10 +332,10 @@
     </div>
   </div>
 
-  <!-- Usage summary -->
+  <!-- Threat stats -->
   <div class="section">
-    <div class="section-title">Today's AI Usage</div>
-    <div class="usage-grid">
+    <div class="section-title">Today's Activity</div>
+    <div class="usage-grid" style="grid-template-columns: 1fr 1fr 1fr;">
       <div class="usage-card">
         <div class="usage-value" id="total-tools">0</div>
         <div class="usage-label">AI Tools</div>
@@ -344,9 +344,21 @@
         <div class="usage-value" id="total-prompts">0</div>
         <div class="usage-label">Requests</div>
       </div>
+      <div class="usage-card" style="border-color: #fecaca;">
+        <div class="usage-value" id="total-blocked" style="color: #dc2626;">0</div>
+        <div class="usage-label">Blocked</div>
+      </div>
     </div>
     <ul class="tool-list" id="tool-list">
       <li class="empty-state">No AI tools used today.</li>
+    </ul>
+  </div>
+
+  <!-- Recent blocks -->
+  <div class="section">
+    <div class="section-title">Recent Detections</div>
+    <ul class="tool-list" id="scan-history">
+      <li class="empty-state">No threats detected today.</li>
     </ul>
   </div>
 
@@ -354,6 +366,14 @@
   <div class="section">
     <div class="section-title">Settings</div>
     <div class="settings-group">
+      <div class="settings-row">
+        <label>Default Action</label>
+        <select id="default-action">
+          <option value="ask">Ask Every Time</option>
+          <option value="block">Auto-Block</option>
+          <option value="anonymize">Auto-Anonymize</option>
+        </select>
+      </div>
       <div class="settings-row">
         <label>Sensitivity</label>
         <select id="sensitivity-level">
