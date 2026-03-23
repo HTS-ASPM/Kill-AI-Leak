@@ -116,3 +116,59 @@ logging:
   level: info
   # Output format: json | text
   format: json
+
+# ---------------------------------------------------------------------------
+# SIEM Export
+# ---------------------------------------------------------------------------
+# Forward security events to an external SIEM platform.
+siem:
+  # Master switch for SIEM export.
+  enabled: false
+  # Export type: "webhook", "splunk", "elastic", "syslog".
+  type: webhook
+  # Target endpoint URL or host:port (for syslog).
+  endpoint: ""
+  # Authentication token (Splunk HEC token, Elastic API key, etc.).
+  token: ""
+  # Target index name.
+  index: ""
+  # Number of events per batch.
+  batch_size: 100
+  # Seconds between automatic batch flushes.
+  flush_interval_secs: 5
+
+# ---------------------------------------------------------------------------
+# Identity Integration
+# ---------------------------------------------------------------------------
+# Configure an external identity provider for user/service authentication.
+identity:
+  # Identity provider type: "apikey", "oidc", "saml".
+  provider: apikey
+  # OIDC issuer URL (for provider=oidc).
+  issuer_url: ""
+  # Expected JWT audience claim (for provider=oidc).
+  audience: ""
+  # Groups that the user must belong to (for provider=oidc).
+  required_groups: []
+  # SAML IdP metadata URL (for provider=saml).
+  saml_metadata_url: ""
+
+# ---------------------------------------------------------------------------
+# Ticketing Integration
+# ---------------------------------------------------------------------------
+# Auto-create tickets in external issue trackers on security events.
+ticketing:
+  # Master switch for ticketing integration.
+  enabled: false
+  # Ticketing provider: "jira", "linear", "webhook".
+  provider: jira
+  # Base URL of the ticketing system (Jira URL or webhook endpoint).
+  base_url: ""
+  # API key or token for authentication.
+  api_key: ""
+  # Project key (Jira) or team ID (Linear).
+  project_key: ""
+  # Automatically create tickets when a block event occurs.
+  auto_create: false
+  # Minimum severity to trigger auto-creation: "critical", "high", "medium", "low".
+  min_severity: high

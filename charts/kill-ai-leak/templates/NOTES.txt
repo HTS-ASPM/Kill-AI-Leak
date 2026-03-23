@@ -1,0 +1,45 @@
+=====================================================================
+  Kill AI Leak - Unified AI Security Platform
+=====================================================================
+
+Your release "{{ .Release.Name }}" has been deployed.
+
+Components:
+  - Gateway:      {{ .Values.gateway.replicas }} replica(s)
+  {{- if .Values.observer.enabled }}
+  - Observer:     DaemonSet (all nodes)
+  {{- end }}
+  {{- if .Values.mcpGateway.enabled }}
+  - MCP Gateway:  {{ .Values.mcpGateway.replicas }} replica(s)
+  {{- end }}
+  {{- if .Values.mlServer.enabled }}
+  - ML Server:    {{ .Values.mlServer.replicas }} replica(s)
+  {{- end }}
+  {{- if .Values.dashboard.enabled }}
+  - Dashboard:    {{ .Values.dashboard.replicas }} replica(s)
+  {{- end }}
+
+{{- if .Values.ingress.enabled }}
+
+The platform is accessible at:
+  {{- if .Values.ingress.tls.enabled }}
+  https://{{ .Values.ingress.host }}
+  {{- else }}
+  http://{{ .Values.ingress.host }}
+  {{- end }}
+{{- else }}
+
+To access the Gateway, run:
+  kubectl port-forward svc/{{ include "kill-ai-leak.fullname" . }}-gateway {{ .Values.gateway.port }}:{{ .Values.gateway.port }}
+
+{{- if .Values.dashboard.enabled }}
+To access the Dashboard, run:
+  kubectl port-forward svc/{{ include "kill-ai-leak.fullname" . }}-dashboard {{ .Values.dashboard.port }}:{{ .Values.dashboard.port }}
+{{- end }}
+{{- end }}
+
+Guardrails: {{ if .Values.guardrails.enabled }}enabled ({{ .Values.guardrails.defaultMode }} mode){{ else }}disabled{{ end }}
+Alerting:   {{ if .Values.alerting.enabled }}enabled (min severity: {{ .Values.alerting.minSeverity }}){{ else }}disabled{{ end }}
+Storage:    {{ .Values.storage.driver }}
+
+For more information, visit: https://github.com/kill-ai-leak/kill-ai-leak

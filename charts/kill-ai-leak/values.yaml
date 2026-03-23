@@ -1,0 +1,174 @@
+# =============================================================================
+# Kill AI Leak - Helm Values
+# =============================================================================
+# Override these values to customize the deployment for your environment.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Gateway — the main inline reverse-proxy + guardrail engine
+# ---------------------------------------------------------------------------
+gateway:
+  # Number of Gateway replicas.
+  replicas: 2
+  image:
+    repository: ghcr.io/kill-ai-leak/gateway
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  # Gateway HTTP port.
+  port: 8080
+  # Kubernetes resource requests/limits.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  # Extra environment variables injected into the Gateway container.
+  # Example:
+  #   env:
+  #     KILLAI_LOG_LEVEL: debug
+  env: {}
+  # Override values merged into the Gateway config file (via ConfigMap).
+  config: {}
+
+# ---------------------------------------------------------------------------
+# Observer — eBPF kernel-level AI traffic sensor (DaemonSet)
+# ---------------------------------------------------------------------------
+observer:
+  # Set to true to deploy the eBPF observer on every node.
+  enabled: true
+  image:
+    repository: ghcr.io/kill-ai-leak/observer
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  # The observer requires privileged access for eBPF programs.
+  privileged: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# MCP Gateway — Model Context Protocol proxy
+# ---------------------------------------------------------------------------
+mcpGateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: ghcr.io/kill-ai-leak/mcp-gateway
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 8081
+
+# ---------------------------------------------------------------------------
+# ML Server — inference sidecar for ML-based detection
+# ---------------------------------------------------------------------------
+mlServer:
+  enabled: true
+  replicas: 1
+  image:
+    repository: ghcr.io/kill-ai-leak/ml-server
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 5000
+
+# ---------------------------------------------------------------------------
+# Dashboard — web UI for visibility and policy management
+# ---------------------------------------------------------------------------
+dashboard:
+  enabled: true
+  replicas: 1
+  image:
+    repository: ghcr.io/kill-ai-leak/dashboard
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  port: 3000
+
+# ---------------------------------------------------------------------------
+# PostgreSQL — policy / inventory persistence
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  storage:
+    size: 10Gi
+  credentials:
+    username: killaileak
+    password: changeme
+    database: kill_ai_leak
+
+# ---------------------------------------------------------------------------
+# Redis — caching, rate-limit counters, session state
+# ---------------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+
+# ---------------------------------------------------------------------------
+# NATS — event bus between components
+# ---------------------------------------------------------------------------
+nats:
+  enabled: true
+  image:
+    repository: nats
+    tag: "2-alpine"
+  # Enable JetStream for durable message streams.
+  jetstream: true
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  # Ingress class name (e.g. nginx, traefik).
+  className: nginx
+  host: kill-ai-leak.example.com
+  tls:
+    enabled: false
+    secretName: kill-ai-leak-tls
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Service Account
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Guardrails
+# ---------------------------------------------------------------------------
+guardrails:
+  enabled: true
+  # Default enforcement mode: off | discover | monitor | enforce
+  defaultMode: monitor
+
+# ---------------------------------------------------------------------------
+# Alerting
+# ---------------------------------------------------------------------------
+alerting:
+  enabled: false
+  # Slack incoming-webhook URL.
+  slackUrl: ""
+  # Generic JSON webhook URL.
+  webhookUrl: ""
+  # Minimum event severity that triggers an alert.
+  minSeverity: high
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+storage:
+  # Storage driver: "memory" (dev/test) or "postgres".
+  driver: memory
+  # PostgreSQL DSN — used when driver is "postgres".
+  postgresDSN: ""

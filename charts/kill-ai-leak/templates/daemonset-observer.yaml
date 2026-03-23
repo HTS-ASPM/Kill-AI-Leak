@@ -1,0 +1,60 @@
+{{- if .Values.observer.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-observer
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observer
+spec:
+  selector:
+    matchLabels:
+      {{- include "kill-ai-leak.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: observer
+  template:
+    metadata:
+      labels:
+        {{- include "kill-ai-leak.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: observer
+    spec:
+      serviceAccountName: {{ include "kill-ai-leak.serviceAccountName" . }}
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: observer
+          image: "{{ .Values.observer.image.repository }}:{{ .Values.observer.image.tag }}"
+          imagePullPolicy: {{ .Values.observer.image.pullPolicy }}
+          securityContext:
+            privileged: {{ .Values.observer.privileged }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: GATEWAY_URL
+              value: "http://{{ include "kill-ai-leak.fullname" . }}-gateway:{{ .Values.gateway.port }}"
+          volumeMounts:
+            - name: sys-kernel
+              mountPath: /sys/kernel
+              readOnly: true
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: bpf-maps
+              mountPath: /sys/fs/bpf
+          resources:
+            {{- toYaml .Values.observer.resources | nindent 12 }}
+      volumes:
+        - name: sys-kernel
+          hostPath:
+            path: /sys/kernel
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: bpf-maps
+          hostPath:
+            path: /sys/fs/bpf
+{{- end }}

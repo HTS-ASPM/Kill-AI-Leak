@@ -1,0 +1,49 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kill-ai-leak.fullname" . }}-gateway
+                port:
+                  name: http
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kill-ai-leak.fullname" . }}-gateway
+                port:
+                  name: http
+          {{- if .Values.dashboard.enabled }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kill-ai-leak.fullname" . }}-dashboard
+                port:
+                  name: http
+          {{- end }}
+{{- end }}

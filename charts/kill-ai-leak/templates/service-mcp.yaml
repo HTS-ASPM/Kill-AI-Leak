@@ -1,0 +1,19 @@
+{{- if .Values.mcpGateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-mcp-gateway
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.mcpGateway.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "kill-ai-leak.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-gateway
+{{- end }}

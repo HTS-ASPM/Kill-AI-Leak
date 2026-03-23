@@ -23,6 +23,8 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/circuitbreaker"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/integrations/siem"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/integrations/ticketing"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
 
@@ -88,6 +90,9 @@ type LLMProxy struct {
 	circuitBreaker *circuitbreaker.Rule
 	alerter        alerting.Alerter
 	alertCfg       config.AlertingConfig
+	siemExporter   siem.SIEMExporter
+	ticketClient   ticketing.TicketingClient
+	ticketCfg      config.TicketingConfig
 
 	mu sync.RWMutex
 }
@@ -116,6 +121,19 @@ func (p *LLMProxy) SetCircuitBreaker(cb *circuitbreaker.Rule) {
 func (p *LLMProxy) SetAlerter(a alerting.Alerter, cfg config.AlertingConfig) {
 	p.alerter = a
 	p.alertCfg = cfg
+}
+
+// SetSIEMExporter attaches a SIEM exporter to the proxy. When events are
+// recorded, they are also forwarded to the SIEM backend.
+func (p *LLMProxy) SetSIEMExporter(e siem.SIEMExporter) {
+	p.siemExporter = e
+}
+
+// SetTicketingClient attaches a ticketing client to the proxy. When a
+// request is blocked with sufficient severity, a ticket is auto-created.
+func (p *LLMProxy) SetTicketingClient(t ticketing.TicketingClient, cfg config.TicketingConfig) {
+	p.ticketClient = t
+	p.ticketCfg = cfg
 }
 
 // NewLLMProxy constructs an LLMProxy from configuration and a guardrail engine.
@@ -573,6 +591,36 @@ func (p *LLMProxy) recordEvent(actor *models.Actor, provider, prompt string, inp
 	}
 
 	p.store.RecordEvent(ev)
+
+	// Export to SIEM if configured.
+	if p.siemExporter != nil {
+		go func() {
+			_ = p.siemExporter.Export(ev)
+		}()
+	}
+
+	// Auto-create ticket if configured and severity threshold is met.
+	if p.ticketClient != nil && p.ticketCfg.AutoCreate && blocked {
+		sevStr := string(severity)
+		if ticketing.ShouldCreateTicket(sevStr, p.ticketCfg.MinSeverity) {
+			go func() {
+				title := fmt.Sprintf("[Kill-AI-Leak] Blocked: %s → %s", actor.ID, provider)
+				desc := fmt.Sprintf("Event ID: %s\nSeverity: %s\nActor: %s\nProvider: %s\nTimestamp: %s",
+					ev.ID, sevStr, actor.ID, provider, ev.Timestamp.Format(time.RFC3339))
+				if len(grResults) > 0 {
+					desc += fmt.Sprintf("\nRule: %s (%s)", grResults[0].RuleName, grResults[0].RuleID)
+					desc += fmt.Sprintf("\nReason: %s", grResults[0].Reason)
+				}
+				_, _ = p.ticketClient.CreateTicket(ticketing.Ticket{
+					Title:       title,
+					Description: desc,
+					Severity:    sevStr,
+					Labels:      []string{"kill-ai-leak", "auto-created"},
+					Project:     p.ticketCfg.ProjectKey,
+				})
+			}()
+		}
+	}
 
 	// Also upsert a service entry.
 	svc := models.AIService{

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-config
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      host: 0.0.0.0
+      port: {{ .Values.gateway.port }}
+      read_timeout: 30s
+      write_timeout: 60s
+      shutdown_timeout: 15s
+    guardrails:
+      enabled: {{ .Values.guardrails.enabled }}
+      default_mode: {{ .Values.guardrails.defaultMode }}
+    storage:
+      driver: {{ .Values.storage.driver }}
+    alerting:
+      enabled: {{ .Values.alerting.enabled }}
+      min_severity: {{ .Values.alerting.minSeverity }}
+    logging:
+      level: info
+      format: json
+    {{- with .Values.gateway.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}

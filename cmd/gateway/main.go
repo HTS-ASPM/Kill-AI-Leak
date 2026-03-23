@@ -17,21 +17,45 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/alerting"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
+	siemint "github.com/kill-ai-leak/kill-ai-leak/pkg/integrations/siem"
+	ticketint "github.com/kill-ai-leak/kill-ai-leak/pkg/integrations/ticketing"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/agentloop"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/agentnet"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/allowlist"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/anomaly"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/audit"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/brand"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/circuitbreaker"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/code"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/codeleak"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/compliance"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/contextaccum"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/costaccount"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/encoding"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/hallucination"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/injection"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/insecurecode"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/jailbreak"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/license"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/network"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/outputpii"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/pii"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/promptleak"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/ratelimit"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/residency"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/responseguard"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/routing"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/schemaval"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/secrets"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/sessiondrift"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/shadowai"
 	detstateful "github.com/kill-ai-leak/kill-ai-leak/pkg/detection/stateful"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/tokenbudget"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/tokenguard"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/topic"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/topicallow"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/toxicity"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/watermark"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/ml"
 	mlinjection "github.com/kill-ai-leak/kill-ai-leak/pkg/ml/injection"
@@ -136,21 +160,67 @@ func run() error {
 
 		// Register all detection rules with default config.
 		rules := []guardrails.Rule{
+			// --- Pre-Input Stage ---
 			network.New(),                   // GR-006: Network Restriction
 			ratelimit.New(),                 // GR-004/005: Rate Limits
+			tokenbudget.New(),               // GR-006: Token Budget Enforcement
+			allowlist.NewProvider(),          // GR-007: Provider Allowlist
+			allowlist.NewModel(),             // GR-008: Model Allowlist
+			shadowai.New(),                  // GR-009: Shadow AI Detection
+
+			// --- Input Stage ---
 			pii.New(),                       // GR-010: PII Detection
 			secrets.New(),                   // GR-012: Secret Detection
 			injDet,                          // GR-013: Prompt Injection Detection
 			jailbreak.New(),                 // GR-014: Jailbreak Detection
 			topic.New(),                     // GR-015: Topic Restriction
+			topicallow.New(),                // GR-016: Topic Allowlist
 			toxDet,                          // GR-017: Input Toxicity Filter
-			residency.New(),                 // GR-020: Data Residency
+			tokenguard.New(),                // GR-018: Max Token Guard
+			encoding.New(),                  // GR-019: Encoding Evasion Detection
+			codeleak.NewSystemPrompt(),      // GR-020: System Prompt Protection
+			codeleak.NewSourceCode(),        // GR-021: Source Code Leak Prevention
+			compliance.NewComplianceTag(),   // GR-022: Compliance Metadata Tagging
+			contextaccum.New(),              // GR-023: Multi-Turn Context Accumulation
+			schemaval.New(),                 // GR-024: Structured Output Validation
+			detstateful.New(sessionTracker), // Stateful: Multi-Turn Analysis
+
+			// --- Routing Stage ---
+			residency.New(),                 // GR-020: Data Residency (EU detection)
 			cbRule,                          // GR-022: Circuit Breaker
-			code.New(),                      // GR-037: Generated Code Vulnerability Scan
+			routing.NewResidencyRouter(),    // GR-025: Data Residency Router
+			routing.NewGDPR(),               // GR-026: EU Data Residency (GDPR)
+			routing.NewFailover(),           // GR-027: Provider Failover
+			routing.NewCostRoute(),          // GR-028: Cost-Aware Routing
+			routing.NewLatencyRoute(),       // GR-029: Latency-Aware Routing
+			routing.NewCanary(),             // GR-030: Canary Routing
+			routing.NewSensitiveRoute(),     // GR-031: Sensitive Data Routing Block
+			routing.NewHIPAA(),              // GR-032: HIPAA Routing Enforcement
+			compliance.NewModelPin(),        // GR-033: Model Version Pinning
+
+			// --- Output Stage ---
+			code.New(),                      // GR-033: Code Vulnerability Scanner
 			promptleak.New(),                // GR-032: System Prompt Leakage Detection
 			hallucination.New(),             // GR-034: Hallucination Detection
+			outputpii.New(),                 // GR-035: Output PII Leakage Detection
 			brand.New(),                     // GR-035: Brand Safety
-			detstateful.New(sessionTracker), // Stateful: Multi-Turn Analysis
+			insecurecode.NewVulnScan(),      // GR-037: Generated Code Vulnerability Scan
+			insecurecode.NewInsecurePattern(), // GR-038: Insecure Code Pattern Detection
+			license.New(),                   // GR-039: License Compliance Check
+			responseguard.NewSizeGuard(),    // GR-043: Response Size Guard
+			responseguard.NewOutputSchema(), // GR-044: Structured Output Conformance
+			watermark.New(),                 // GR-045: Watermark Injection
+
+			// --- Post-Output Stage ---
+			audit.NewAudit(),                // GR-046: Audit Log Writer
+			costaccount.New(),               // GR-047: Cost Accounting
+			anomaly.New(),                   // GR-048: Anomaly Detection Feed
+			audit.NewAnalytics(),            // GR-049: Usage Analytics Export
+
+			// --- Behavioral Stage ---
+			agentnet.New(),                  // GR-052: Agent Network Egress Control
+			sessiondrift.New(),              // GR-053: Session Drift Detection
+			agentloop.New(),                 // GR-054: Recursive Agent Loop Detection
 		}
 		for _, rule := range rules {
 			ruleCfg := &models.GuardrailRuleConfig{
@@ -227,6 +297,46 @@ func run() error {
 				"min_severity": cfg.Alerting.MinSeverity,
 				"slack":        cfg.Alerting.SlackURL != "",
 				"webhook":      cfg.Alerting.WebhookURL != "",
+			})
+		}
+	}
+
+	// --- Initialize SIEM export ---
+	if cfg.SIEM.Enabled {
+		siemCfg := siemint.SIEMConfig{
+			Enabled:   cfg.SIEM.Enabled,
+			Type:      cfg.SIEM.Type,
+			Endpoint:  cfg.SIEM.Endpoint,
+			Token:     cfg.SIEM.Token,
+			Index:     cfg.SIEM.Index,
+			BatchSize: cfg.SIEM.BatchSize,
+			FlushSecs: cfg.SIEM.FlushSecs,
+		}
+		if exporter := siemint.NewSIEMExporterFromConfig(siemCfg); exporter != nil {
+			llmProxy.SetSIEMExporter(exporter)
+			log.Info(ctx, "SIEM export enabled", map[string]any{
+				"type":     cfg.SIEM.Type,
+				"endpoint": cfg.SIEM.Endpoint,
+			})
+		}
+	}
+
+	// --- Initialize ticketing ---
+	if cfg.Ticketing.Enabled {
+		ticketCfg := ticketint.TicketingConfig{
+			Enabled:     cfg.Ticketing.Enabled,
+			Provider:    cfg.Ticketing.Provider,
+			BaseURL:     cfg.Ticketing.BaseURL,
+			APIKey:      cfg.Ticketing.APIKey,
+			ProjectKey:  cfg.Ticketing.ProjectKey,
+			AutoCreate:  cfg.Ticketing.AutoCreate,
+			MinSeverity: cfg.Ticketing.MinSeverity,
+		}
+		if client := ticketint.NewTicketingClientFromConfig(ticketCfg); client != nil {
+			llmProxy.SetTicketingClient(client, cfg.Ticketing)
+			log.Info(ctx, "ticketing enabled", map[string]any{
+				"provider":    cfg.Ticketing.Provider,
+				"auto_create": cfg.Ticketing.AutoCreate,
 			})
 		}
 	}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kill-ai-leak
+description: Unified AI Security Platform — eBPF observability + inline guardrails
+version: 0.1.0
+appVersion: "0.1.0"
+type: application

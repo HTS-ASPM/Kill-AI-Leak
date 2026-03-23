@@ -1,0 +1,30 @@
+{{- if and .Values.serviceAccount.create .Values.observer.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-observer
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "services"]
+    verbs: ["list", "watch", "get"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-observer
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kill-ai-leak.fullname" . }}-observer
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kill-ai-leak.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

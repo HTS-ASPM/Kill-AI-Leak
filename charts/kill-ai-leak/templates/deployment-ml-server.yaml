@@ -1,0 +1,42 @@
+{{- if .Values.mlServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-ml-server
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ml-server
+spec:
+  replicas: {{ .Values.mlServer.replicas }}
+  selector:
+    matchLabels:
+      {{- include "kill-ai-leak.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ml-server
+  template:
+    metadata:
+      labels:
+        {{- include "kill-ai-leak.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ml-server
+    spec:
+      serviceAccountName: {{ include "kill-ai-leak.serviceAccountName" . }}
+      containers:
+        - name: ml-server
+          image: "{{ .Values.mlServer.image.repository }}:{{ .Values.mlServer.image.tag }}"
+          imagePullPolicy: {{ .Values.mlServer.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mlServer.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+{{- end }}

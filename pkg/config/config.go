@@ -20,6 +20,40 @@ type AppConfig struct {
 	Logging    LoggingConfig    `json:"logging" yaml:"logging"`
 	Auth       AuthConfig       `json:"auth" yaml:"auth"`
 	Alerting   AlertingConfig   `json:"alerting" yaml:"alerting"`
+	SIEM       SIEMConfig       `json:"siem" yaml:"siem"`
+	Identity   IdentityConfig   `json:"identity" yaml:"identity"`
+	Ticketing  TicketingConfig  `json:"ticketing" yaml:"ticketing"`
+}
+
+// SIEMConfig holds configuration for SIEM event export.
+type SIEMConfig struct {
+	Enabled   bool   `json:"enabled" yaml:"enabled"`
+	Type      string `json:"type" yaml:"type"`           // "webhook", "splunk", "elastic", "syslog"
+	Endpoint  string `json:"endpoint" yaml:"endpoint"`   // Target URL or host:port
+	Token     string `json:"token" yaml:"token"`         // Auth token (HEC token, API key, etc.)
+	Index     string `json:"index" yaml:"index"`         // Target index/sourcetype
+	BatchSize int    `json:"batch_size" yaml:"batch_size"`
+	FlushSecs int    `json:"flush_interval_secs" yaml:"flush_interval_secs"`
+}
+
+// IdentityConfig holds configuration for identity provider integration.
+type IdentityConfig struct {
+	Provider        string   `json:"provider" yaml:"provider"`                   // "apikey", "oidc", "saml"
+	IssuerURL       string   `json:"issuer_url" yaml:"issuer_url"`              // OIDC issuer URL
+	Audience        string   `json:"audience" yaml:"audience"`                  // Expected audience claim
+	RequiredGroups  []string `json:"required_groups" yaml:"required_groups"`    // Required group membership
+	SAMLMetadataURL string   `json:"saml_metadata_url" yaml:"saml_metadata_url"` // SAML metadata endpoint
+}
+
+// TicketingConfig holds configuration for ticketing system integration.
+type TicketingConfig struct {
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
+	Provider    string `json:"provider" yaml:"provider"`         // "jira", "linear", "webhook"
+	BaseURL     string `json:"base_url" yaml:"base_url"`         // Jira base URL / webhook URL
+	APIKey      string `json:"api_key" yaml:"api_key"`           // API token / key
+	ProjectKey  string `json:"project_key" yaml:"project_key"`   // Jira project key / Linear team ID
+	AutoCreate  bool   `json:"auto_create" yaml:"auto_create"`   // Auto-create on high-severity blocks
+	MinSeverity string `json:"min_severity" yaml:"min_severity"` // Min severity for auto-creation
 }
 
 // ServerConfig holds HTTP server settings.
@@ -162,6 +196,21 @@ func DefaultConfig() *AppConfig {
 			Enabled:     false,
 			MinSeverity: "high",
 		},
+		SIEM: SIEMConfig{
+			Enabled:   false,
+			Type:      "webhook",
+			BatchSize: 100,
+			FlushSecs: 5,
+		},
+		Identity: IdentityConfig{
+			Provider: "apikey",
+		},
+		Ticketing: TicketingConfig{
+			Enabled:     false,
+			Provider:    "jira",
+			AutoCreate:  false,
+			MinSeverity: "high",
+		},
 	}
 }
 
@@ -252,6 +301,67 @@ func ApplyEnvOverrides(cfg *AppConfig) {
 	}
 	if v := os.Getenv("KILLAI_ALERTING_MIN_SEVERITY"); v != "" {
 		cfg.Alerting.MinSeverity = v
+	}
+	// --- SIEM overrides ---
+	if v := os.Getenv("KILLAI_SIEM_ENABLED"); v != "" {
+		cfg.SIEM.Enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("KILLAI_SIEM_TYPE"); v != "" {
+		cfg.SIEM.Type = v
+	}
+	if v := os.Getenv("KILLAI_SIEM_ENDPOINT"); v != "" {
+		cfg.SIEM.Endpoint = v
+	}
+	if v := os.Getenv("KILLAI_SIEM_TOKEN"); v != "" {
+		cfg.SIEM.Token = v
+	}
+	if v := os.Getenv("KILLAI_SIEM_INDEX"); v != "" {
+		cfg.SIEM.Index = v
+	}
+	if v := os.Getenv("KILLAI_SIEM_BATCH_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.SIEM.BatchSize = n
+		}
+	}
+	if v := os.Getenv("KILLAI_SIEM_FLUSH_SECS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.SIEM.FlushSecs = n
+		}
+	}
+	// --- Identity overrides ---
+	if v := os.Getenv("KILLAI_IDENTITY_PROVIDER"); v != "" {
+		cfg.Identity.Provider = v
+	}
+	if v := os.Getenv("KILLAI_IDENTITY_ISSUER_URL"); v != "" {
+		cfg.Identity.IssuerURL = v
+	}
+	if v := os.Getenv("KILLAI_IDENTITY_AUDIENCE"); v != "" {
+		cfg.Identity.Audience = v
+	}
+	if v := os.Getenv("KILLAI_IDENTITY_SAML_METADATA_URL"); v != "" {
+		cfg.Identity.SAMLMetadataURL = v
+	}
+	// --- Ticketing overrides ---
+	if v := os.Getenv("KILLAI_TICKETING_ENABLED"); v != "" {
+		cfg.Ticketing.Enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("KILLAI_TICKETING_PROVIDER"); v != "" {
+		cfg.Ticketing.Provider = v
+	}
+	if v := os.Getenv("KILLAI_TICKETING_BASE_URL"); v != "" {
+		cfg.Ticketing.BaseURL = v
+	}
+	if v := os.Getenv("KILLAI_TICKETING_API_KEY"); v != "" {
+		cfg.Ticketing.APIKey = v
+	}
+	if v := os.Getenv("KILLAI_TICKETING_PROJECT_KEY"); v != "" {
+		cfg.Ticketing.ProjectKey = v
+	}
+	if v := os.Getenv("KILLAI_TICKETING_AUTO_CREATE"); v != "" {
+		cfg.Ticketing.AutoCreate = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("KILLAI_TICKETING_MIN_SEVERITY"); v != "" {
+		cfg.Ticketing.MinSeverity = v
 	}
 }
 

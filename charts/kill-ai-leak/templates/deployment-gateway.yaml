@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kill-ai-leak.fullname" . }}-gateway
+  labels:
+    {{- include "kill-ai-leak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "kill-ai-leak.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "kill-ai-leak.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "kill-ai-leak.serviceAccountName" . }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.gateway.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          env:
+            - name: KILLAI_SERVER_PORT
+              value: {{ .Values.gateway.port | quote }}
+            - name: KILLAI_GUARDRAILS_ENABLED
+              value: {{ .Values.guardrails.enabled | quote }}
+            - name: KILLAI_GUARDRAILS_DEFAULT_MODE
+              value: {{ .Values.guardrails.defaultMode | quote }}
+            - name: KILLAI_STORAGE_DRIVER
+              value: {{ .Values.storage.driver | quote }}
+            {{- if .Values.storage.postgresDSN }}
+            - name: KILLAI_STORAGE_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kill-ai-leak.fullname" . }}-secret
+                  key: postgres-dsn
+            {{- end }}
+            {{- if .Values.alerting.enabled }}
+            - name: KILLAI_ALERTING_ENABLED
+              value: "true"
+            - name: KILLAI_ALERTING_MIN_SEVERITY
+              value: {{ .Values.alerting.minSeverity | quote }}
+            {{- if .Values.alerting.slackUrl }}
+            - name: KILLAI_ALERTING_SLACK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kill-ai-leak.fullname" . }}-secret
+                  key: slack-url
+            {{- end }}
+            {{- if .Values.alerting.webhookUrl }}
+            - name: KILLAI_ALERTING_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kill-ai-leak.fullname" . }}-secret
+                  key: webhook-url
+            {{- end }}
+            {{- end }}
+            {{- range $key, $value := .Values.gateway.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kill-ai-leak
+              readOnly: true
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "kill-ai-leak.fullname" . }}-config
