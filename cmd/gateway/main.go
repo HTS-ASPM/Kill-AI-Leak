@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/kill-ai-leak/kill-ai-leak/internal/health"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"

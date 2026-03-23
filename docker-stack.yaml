@@ -11,6 +11,8 @@ services:
       KILLAI_GUARDRAILS_ENABLED: "true"
       KILLAI_GUARDRAILS_DEFAULT_MODE: enforce
       KILLAI_SERVER_HOST: "0.0.0.0"
+      KILLAI_STORAGE_DRIVER: postgres
+      KILLAI_STORAGE_POSTGRES_DSN: "postgres://killai:killai123@postgres:5432/kill_ai_leak?sslmode=disable"
     deploy:
       replicas: 1
       restart_policy:
@@ -48,6 +50,30 @@ services:
     networks:
       - killnet
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: killai
+      POSTGRES_PASSWORD: killai123
+      POSTGRES_DB: kill_ai_leak
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U killai -d kill_ai_leak"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - killnet
+
   redis:
     image: redis:7-alpine
     ports:
@@ -78,6 +104,9 @@ services:
           memory: 64M
     networks:
       - killnet
+
+volumes:
+  pgdata:
 
 networks:
   killnet:
