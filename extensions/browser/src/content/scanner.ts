@@ -207,14 +207,49 @@ function scanText(text: string): ScanFinding[] {
       if (seen.has(key)) continue;
       seen.add(key);
 
-      findings.push({
-        type: pattern.type,
-        label: pattern.label,
-        severity: pattern.severity,
-        value: match[0],
-        startPos: match.index,
-        endPos: match.index + match[0].length,
-      });
+      // For credential patterns with capture groups, show each captured value separately.
+      if (pattern.label === "credential" && match.length > 1) {
+        // Combined user+pass pattern (2 groups): show username and password separately
+        if (match[2]) {
+          findings.push({
+            type: pattern.type,
+            label: "username",
+            severity: pattern.severity,
+            value: match[1],
+            startPos: match.index,
+            endPos: match.index + match[0].length,
+          });
+          findings.push({
+            type: pattern.type,
+            label: "password",
+            severity: "critical",
+            value: match[2],
+            startPos: match.index,
+            endPos: match.index + match[0].length,
+          });
+        } else if (match[1]) {
+          // Single capture group (password only)
+          const keyword = match[0].match(/^(password|passwd|pass|pwd|username|user|login)/i)?.[0]?.toLowerCase() ?? "credential";
+          const displayLabel = keyword.startsWith("pass") || keyword === "pwd" ? "password" : "username";
+          findings.push({
+            type: pattern.type,
+            label: displayLabel,
+            severity: pattern.severity,
+            value: match[1],
+            startPos: match.index,
+            endPos: match.index + match[0].length,
+          });
+        }
+      } else {
+        findings.push({
+          type: pattern.type,
+          label: pattern.label,
+          severity: pattern.severity,
+          value: match[0],
+          startPos: match.index,
+          endPos: match.index + match[0].length,
+        });
+      }
     }
   }
 
