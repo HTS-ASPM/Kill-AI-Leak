@@ -76,6 +76,10 @@ guardrails:
 # Storage Backends
 # ---------------------------------------------------------------------------
 storage:
+  # Storage driver: "memory" for in-memory (dev/test), "postgres" for PostgreSQL.
+  driver: memory
+  # PostgreSQL DSN. Used when driver is "postgres".
+  postgres_dsn: postgres://localhost:5432/kill_ai_leak?sslmode=disable
   # ClickHouse is the primary store for events and analytics.
   clickhouse:
     dsn: tcp://localhost:9000/kill_ai_leak
@@ -88,6 +92,21 @@ storage:
   # NATS is the event bus between gateway, processor, and API server.
   nats:
     url: nats://localhost:4222
+
+# ---------------------------------------------------------------------------
+# Alerting
+# ---------------------------------------------------------------------------
+alerting:
+  # Master switch for alerting.
+  enabled: false
+  # Slack incoming webhook URL. Leave empty to disable Slack alerts.
+  slack_url: ""
+  # Generic webhook URL for JSON POST alerts. Leave empty to disable.
+  webhook_url: ""
+  # Optional email recipient. Not yet implemented.
+  email_to: ""
+  # Minimum severity to trigger an alert: "critical", "high", "medium", "low".
+  min_severity: high
 
 # ---------------------------------------------------------------------------
 # Logging

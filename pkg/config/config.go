@@ -19,6 +19,7 @@ type AppConfig struct {
 	Storage    StorageConfig    `json:"storage" yaml:"storage"`
 	Logging    LoggingConfig    `json:"logging" yaml:"logging"`
 	Auth       AuthConfig       `json:"auth" yaml:"auth"`
+	Alerting   AlertingConfig   `json:"alerting" yaml:"alerting"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -72,6 +73,8 @@ type StorageConfig struct {
 	EventDSN     string `json:"event_dsn" yaml:"event_dsn"`
 	PolicyDriver string `json:"policy_driver" yaml:"policy_driver"`
 	PolicyDSN    string `json:"policy_dsn" yaml:"policy_dsn"`
+	PostgresDSN  string `json:"postgres_dsn" yaml:"postgres_dsn"`
+	Driver       string `json:"driver" yaml:"driver"` // "memory" or "postgres"
 }
 
 // LoggingConfig holds structured logging settings.
@@ -86,6 +89,15 @@ type AuthConfig struct {
 	Enabled     bool              `json:"enabled" yaml:"enabled"`
 	HeaderName  string            `json:"header_name" yaml:"header_name"`
 	ServiceKeys map[string]string `json:"service_keys" yaml:"service_keys"`
+}
+
+// AlertingConfig holds alert dispatch settings.
+type AlertingConfig struct {
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
+	SlackURL    string `json:"slack_url" yaml:"slack_url"`
+	WebhookURL  string `json:"webhook_url" yaml:"webhook_url"`
+	EmailTo     string `json:"email_to" yaml:"email_to"`
+	MinSeverity string `json:"min_severity" yaml:"min_severity"` // "critical", "high", "medium"
 }
 
 // DefaultConfig returns an AppConfig populated with production-ready defaults.
@@ -135,6 +147,7 @@ func DefaultConfig() *AppConfig {
 		Storage: StorageConfig{
 			EventDriver:  "memory",
 			PolicyDriver: "file",
+			Driver:       "memory",
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -144,6 +157,10 @@ func DefaultConfig() *AppConfig {
 		Auth: AuthConfig{
 			Enabled:    true,
 			HeaderName: "X-APP-ID",
+		},
+		Alerting: AlertingConfig{
+			Enabled:     false,
+			MinSeverity: "high",
 		},
 	}
 }
@@ -217,6 +234,24 @@ func ApplyEnvOverrides(cfg *AppConfig) {
 	}
 	if v := os.Getenv("KILLAI_AUTH_ENABLED"); v != "" {
 		cfg.Auth.Enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("KILLAI_STORAGE_DRIVER"); v != "" {
+		cfg.Storage.Driver = v
+	}
+	if v := os.Getenv("KILLAI_STORAGE_POSTGRES_DSN"); v != "" {
+		cfg.Storage.PostgresDSN = v
+	}
+	if v := os.Getenv("KILLAI_ALERTING_ENABLED"); v != "" {
+		cfg.Alerting.Enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("KILLAI_ALERTING_SLACK_URL"); v != "" {
+		cfg.Alerting.SlackURL = v
+	}
+	if v := os.Getenv("KILLAI_ALERTING_WEBHOOK_URL"); v != "" {
+		cfg.Alerting.WebhookURL = v
+	}
+	if v := os.Getenv("KILLAI_ALERTING_MIN_SEVERITY"); v != "" {
+		cfg.Alerting.MinSeverity = v
 	}
 }
 

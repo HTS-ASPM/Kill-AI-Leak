@@ -23,3 +23,13 @@ logging:
 
 auth:
   enabled: false  # no APP-ID required for local dev
+
+storage:
+  driver: memory  # use "postgres" with a valid postgres_dsn for PostgreSQL
+  # postgres_dsn: postgres://localhost:5432/kill_ai_leak?sslmode=disable
+
+alerting:
+  enabled: false
+  # slack_url: https://hooks.slack.com/services/T.../B.../xxx
+  # webhook_url: https://example.com/alert-hook
+  min_severity: high

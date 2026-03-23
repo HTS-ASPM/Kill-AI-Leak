@@ -8,20 +8,29 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/health"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/alerting"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/brand"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/circuitbreaker"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/code"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/hallucination"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/injection"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/jailbreak"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/network"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/pii"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/promptleak"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/ratelimit"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/residency"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/secrets"
 	detstateful "github.com/kill-ai-leak/kill-ai-leak/pkg/detection/stateful"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/topic"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/toxicity"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/ml"
@@ -30,6 +39,7 @@ import (
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/proxy"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/stateful"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/storage/postgres"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/store"
 )
 
@@ -101,6 +111,10 @@ func run() error {
 	sessionTracker := stateful.NewSessionTracker(stateful.DefaultTrackerConfig())
 	defer sessionTracker.Stop()
 
+	// Circuit breaker rule (GR-022), created outside the guardrails block
+	// so it can be referenced by the proxy for RecordSuccess/RecordFailure.
+	cbRule := circuitbreaker.New()
+
 	if cfg.Guardrails.Enabled {
 		registry = guardrails.NewRegistry()
 
@@ -122,14 +136,21 @@ func run() error {
 
 		// Register all detection rules with default config.
 		rules := []guardrails.Rule{
-			ratelimit.New(),
-			pii.New(),
-			secrets.New(),
-			injDet,
-			jailbreak.New(),
-			toxDet,
-			code.New(),
-			detstateful.New(sessionTracker),
+			network.New(),                   // GR-006: Network Restriction
+			ratelimit.New(),                 // GR-004/005: Rate Limits
+			pii.New(),                       // GR-010: PII Detection
+			secrets.New(),                   // GR-012: Secret Detection
+			injDet,                          // GR-013: Prompt Injection Detection
+			jailbreak.New(),                 // GR-014: Jailbreak Detection
+			topic.New(),                     // GR-015: Topic Restriction
+			toxDet,                          // GR-017: Input Toxicity Filter
+			residency.New(),                 // GR-020: Data Residency
+			cbRule,                          // GR-022: Circuit Breaker
+			code.New(),                      // GR-037: Generated Code Vulnerability Scan
+			promptleak.New(),                // GR-032: System Prompt Leakage Detection
+			hallucination.New(),             // GR-034: Hallucination Detection
+			brand.New(),                     // GR-035: Brand Safety
+			detstateful.New(sessionTracker), // Stateful: Multi-Turn Analysis
 		}
 		for _, rule := range rules {
 			ruleCfg := &models.GuardrailRuleConfig{
@@ -161,10 +182,27 @@ func run() error {
 		hc.SetComponentHealth("guardrails", health.StatusHealthy, "disabled")
 	}
 
-	// --- Create in-memory data store ---
+	// --- Create data store ---
+	// The in-memory store is always created (used by API handler and seeding).
+	// If the storage driver is "postgres", a PostgresStore is created and
+	// used as the primary EventRecorder for the proxy.
 	dataStore := store.New()
-	seedSampleData(dataStore)
-	log.Info(ctx, "in-memory data store initialized with seed data")
+
+	var pgStore *postgres.PostgresStore
+	if cfg.Storage.Driver == "postgres" && cfg.Storage.PostgresDSN != "" {
+		var pgErr error
+		pgStore, pgErr = postgres.NewPostgresStore(cfg.Storage.PostgresDSN)
+		if pgErr != nil {
+			return fmt.Errorf("create postgres store: %w", pgErr)
+		}
+		defer pgStore.Close()
+		log.Info(ctx, "PostgreSQL storage initialized", map[string]any{
+			"dsn": maskDSN(cfg.Storage.PostgresDSN),
+		})
+	} else {
+		seedSampleData(dataStore)
+		log.Info(ctx, "in-memory data store initialized with seed data")
+	}
 
 	// --- Create proxy ---
 	llmProxy, err := proxy.NewLLMProxy(cfg, engine, log)
@@ -172,10 +210,35 @@ func run() error {
 		return fmt.Errorf("create proxy: %w", err)
 	}
 	llmProxy.SetStore(dataStore)
+	llmProxy.SetCircuitBreaker(cbRule)
 	hc.SetComponentHealth("proxy", health.StatusHealthy, "provider targets resolved")
 
+	// --- Initialize alerting ---
+	if cfg.Alerting.Enabled {
+		alerterCfg := alerting.AlertConfig{
+			Enabled:     cfg.Alerting.Enabled,
+			SlackURL:    cfg.Alerting.SlackURL,
+			WebhookURL:  cfg.Alerting.WebhookURL,
+			MinSeverity: cfg.Alerting.MinSeverity,
+		}
+		if a := alerting.NewAlerterFromConfig(alerterCfg); a != nil {
+			llmProxy.SetAlerter(a, cfg.Alerting)
+			log.Info(ctx, "alerting enabled", map[string]any{
+				"min_severity": cfg.Alerting.MinSeverity,
+				"slack":        cfg.Alerting.SlackURL != "",
+				"webhook":      cfg.Alerting.WebhookURL != "",
+			})
+		}
+	}
+
 	// --- Create data API handler ---
+	// The API handler still uses the in-memory store for now; when the
+	// full storage.Store interface is adopted by the API layer, it can
+	// switch to pgStore.
 	apiHandler := proxy.NewAPIHandler(dataStore, registry)
+
+	// Keep a reference to pgStore to suppress unused variable warning.
+	_ = pgStore
 
 	// --- Build handler ---
 	handler := proxy.NewHandler(llmProxy, hc, log, cfg)
@@ -247,6 +310,22 @@ func run() error {
 
 	log.Info(ctx, "gateway stopped cleanly")
 	return nil
+}
+
+// maskDSN hides the password portion of a DSN for safe logging.
+func maskDSN(dsn string) string {
+	// Simple approach: look for "password=" or ":pass@" patterns.
+	masked := dsn
+	if idx := strings.Index(masked, "://"); idx >= 0 {
+		// Format: postgres://user:password@host/db
+		rest := masked[idx+3:]
+		if atIdx := strings.Index(rest, "@"); atIdx >= 0 {
+			if colonIdx := strings.Index(rest[:atIdx], ":"); colonIdx >= 0 {
+				masked = masked[:idx+3] + rest[:colonIdx] + ":****@" + rest[atIdx+1:]
+			}
+		}
+	}
+	return masked
 }
 
 // seedSampleData populates the store with realistic initial data so the

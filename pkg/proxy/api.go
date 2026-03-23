@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/compliance"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/store"
@@ -45,6 +46,8 @@ func (a *APIHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/policies", a.handlePolicies)
 
 	mux.HandleFunc("/api/v1/lineage", a.handleLineage)
+
+	mux.HandleFunc("/api/v1/compliance/", a.handleCompliance)
 }
 
 // --- Stats ---
@@ -447,6 +450,91 @@ func (a *APIHandler) handleLineage(w http.ResponseWriter, r *http.Request) {
 		"nodes": nodes,
 		"edges": edges,
 	})
+}
+
+// --- Compliance ---
+
+func (a *APIHandler) handleCompliance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		a.methodNotAllowed(w)
+		return
+	}
+
+	standard := strings.TrimPrefix(r.URL.Path, "/api/v1/compliance/")
+	if standard == "" {
+		a.respondJSON(w, http.StatusBadRequest, apiErrorBody{
+			Error:   "bad_request",
+			Message: "Missing compliance standard. Use: gdpr, soc2, or eu-ai-act",
+		})
+		return
+	}
+
+	// Parse time range from query params, defaulting to last 30 days.
+	now := time.Now()
+	tr := compliance.TimeRange{
+		From: now.AddDate(0, 0, -30),
+		To:   now,
+	}
+	if v := r.URL.Query().Get("from"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			tr.From = t
+		}
+	}
+	if v := r.URL.Query().Get("to"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			tr.To = t
+		}
+	}
+
+	gen := compliance.NewReportGenerator(a.store, a.registry)
+
+	var (
+		report *compliance.ComplianceReport
+		err    error
+	)
+
+	switch standard {
+	case "gdpr":
+		report, err = gen.GenerateGDPR(tr)
+	case "soc2":
+		report, err = gen.GenerateSOC2(tr)
+	case "eu-ai-act":
+		report, err = gen.GenerateEUAIAct(tr)
+	default:
+		a.respondJSON(w, http.StatusBadRequest, apiErrorBody{
+			Error:   "bad_request",
+			Message: "Unknown compliance standard. Use: gdpr, soc2, or eu-ai-act",
+		})
+		return
+	}
+
+	if err != nil {
+		a.respondJSON(w, http.StatusInternalServerError, apiErrorBody{
+			Error:   "internal_error",
+			Message: "Failed to generate compliance report",
+		})
+		return
+	}
+
+	// Return markdown or JSON based on Accept header or format param.
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		accept := r.Header.Get("Accept")
+		if strings.Contains(accept, "text/markdown") {
+			format = "markdown"
+		} else {
+			format = "json"
+		}
+	}
+
+	switch format {
+	case "markdown":
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(compliance.ExportMarkdown(report)))
+	default:
+		a.respondJSON(w, http.StatusOK, report)
+	}
 }
 
 // --- Helpers ---

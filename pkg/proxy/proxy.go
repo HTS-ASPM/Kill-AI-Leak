@@ -18,8 +18,10 @@ import (
 
 	"github.com/kill-ai-leak/kill-ai-leak/internal/logger"
 	"github.com/kill-ai-leak/kill-ai-leak/internal/middleware"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/alerting"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/anonymizer"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/config"
+	"github.com/kill-ai-leak/kill-ai-leak/pkg/detection/circuitbreaker"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/guardrails"
 	"github.com/kill-ai-leak/kill-ai-leak/pkg/models"
 )
@@ -76,13 +78,16 @@ var wellKnownProviders = map[string]string{
 // LLM providers. It intercepts requests and responses, runs guardrail
 // evaluations, and enforces security policy.
 type LLMProxy struct {
-	config     *config.AppConfig
-	engine     GuardrailEngine
-	log        *logger.Logger
-	targets    map[string]*url.URL
-	transports map[string]*http.Transport
-	anonymizer *anonymizer.Anonymizer
-	store      EventRecorder
+	config         *config.AppConfig
+	engine         GuardrailEngine
+	log            *logger.Logger
+	targets        map[string]*url.URL
+	transports     map[string]*http.Transport
+	anonymizer     *anonymizer.Anonymizer
+	store          EventRecorder
+	circuitBreaker *circuitbreaker.Rule
+	alerter        alerting.Alerter
+	alertCfg       config.AlertingConfig
 
 	mu sync.RWMutex
 }
@@ -98,6 +103,19 @@ type EventRecorder interface {
 // evaluation results are automatically recorded as events.
 func (p *LLMProxy) SetStore(s EventRecorder) {
 	p.store = s
+}
+
+// SetCircuitBreaker attaches a circuit breaker rule to the proxy. After each
+// upstream response, the proxy will call RecordSuccess or RecordFailure.
+func (p *LLMProxy) SetCircuitBreaker(cb *circuitbreaker.Rule) {
+	p.circuitBreaker = cb
+}
+
+// SetAlerter attaches an alerter to the proxy. When a request is blocked,
+// an alert is sent asynchronously.
+func (p *LLMProxy) SetAlerter(a alerting.Alerter, cfg config.AlertingConfig) {
+	p.alerter = a
+	p.alertCfg = cfg
 }
 
 // NewLLMProxy constructs an LLMProxy from configuration and a guardrail engine.
@@ -243,6 +261,9 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			p.recordEvent(actor, provider, promptText, inputResult, nil, true, time.Since(requestStart).Milliseconds())
 
+			// Send alert asynchronously if alerter is configured.
+			p.sendBlockedAlert(actor, provider, inputResult)
+
 			respondJSON(w, http.StatusForbidden, blockedResponse{
 				Error:     "request_blocked",
 				Message:   "Your request was blocked by security policy",
@@ -371,6 +392,15 @@ func (p *LLMProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		break
 	}
 	defer resp.Body.Close()
+
+	// --- 6c. Record circuit breaker result ---
+	if p.circuitBreaker != nil {
+		if resp.StatusCode >= 500 {
+			p.circuitBreaker.RecordFailure(provider)
+		} else {
+			p.circuitBreaker.RecordSuccess(provider)
+		}
+	}
 
 	// --- 7. Check for streaming response ---
 	contentType := resp.Header.Get("Content-Type")
@@ -947,6 +977,58 @@ func (p *LLMProxy) ReverseProxy(provider string) (*httputil.ReverseProxy, error)
 		Transport: p.transports[provider],
 	}
 	return rp, nil
+}
+
+// ---- Alerting Helper ----
+
+// sendBlockedAlert fires an alert asynchronously when a request is blocked.
+// It does not block the request handling goroutine.
+func (p *LLMProxy) sendBlockedAlert(actor *models.Actor, provider string, result *models.PipelineResult) {
+	if p.alerter == nil {
+		return
+	}
+
+	severity := "high"
+	if result != nil {
+		for _, eval := range result.Evaluations {
+			if eval.Decision == models.DecisionBlock {
+				// Use the stage/category to determine severity.
+				if eval.Confidence >= 0.9 {
+					severity = "critical"
+				}
+				break
+			}
+		}
+	}
+
+	if !alerting.ShouldAlert(severity, p.alertCfg.MinSeverity) {
+		return
+	}
+
+	alert := alerting.Alert{
+		Severity:  severity,
+		Title:     "Request Blocked by Guardrail",
+		Message:   fmt.Sprintf("A request from `%s` to provider `%s` was blocked by rule `%s`.", actor.ID, provider, result.BlockedBy),
+		RuleID:    result.BlockedBy,
+		Actor:     actor.ID,
+		Provider:  provider,
+		Timestamp: time.Now(),
+		Details:   make(map[string]string),
+	}
+
+	if actor.Namespace != "" {
+		alert.Details["namespace"] = actor.Namespace
+	}
+	if result.FinalDecision != "" {
+		alert.Details["decision"] = string(result.FinalDecision)
+	}
+
+	// Send asynchronously to avoid blocking the request.
+	go func() {
+		if err := p.alerter.SendAlert(alert); err != nil {
+			p.log.Error(context.Background(), "failed to send alert", map[string]any{"error": err.Error()})
+		}
+	}()
 }
 
 // ---- PII Anonymization Helpers ----
