@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+  gateway:
+    image: kill-ai-leak-gateway:local
+    ports:
+      - "8080:8080"
+    environment:
+      KILLAI_LOG_LEVEL: info
+      KILLAI_AUTH_ENABLED: "false"
+      KILLAI_GUARDRAILS_ENABLED: "true"
+      KILLAI_GUARDRAILS_DEFAULT_MODE: enforce
+      KILLAI_SERVER_HOST: "0.0.0.0"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - killnet
+
+  dashboard:
+    image: kill-ai-leak-dashboard:local
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://gateway:8080/api/v1
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    depends_on:
+      - gateway
+    networks:
+      - killnet
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - killnet
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 64M
+    networks:
+      - killnet
+
+networks:
+  killnet:
+    driver: overlay
